@@ -1,0 +1,30 @@
+{
+  "name": "pocket-code",
+  "version": "1.0.0",
+  "description": "PocketCode — A powerful CLI toolkit built for Android Termux",
+  "license": "MIT",
+  "bin": "dist/cli.js",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "clean": "rm -rf dist"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "ink": "^4.4.1",
+    "meow": "^12.1.1",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@sindresorhus/tsconfig": "^5.0.0",
+    "@types/react": "^18.2.48",
+    "typescript": "^5.3.3"
+  }
+}
