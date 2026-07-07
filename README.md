@@ -1,4 +1,5 @@
 # PocketCode
+<img width="595" height="285" alt="image" src="https://github.com/user-attachments/assets/1cd08efc-f925-46da-a509-1755272be83a" />
 
 A lightweight command-line AI assistant built for **Termux** on Android. PocketCode connects to **Google AI Studio (Gemini/Gemma models)** using your own API key, and lets you chat directly from your phone's terminal — no browser, no app switching.
 
