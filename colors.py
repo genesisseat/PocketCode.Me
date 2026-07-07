@@ -87,6 +87,9 @@ SOFT_RED    = "\033[38;5;203m"    # errors / warnings
 SOFT_PURPLE = "\033[38;5;141m"    # model name
 TEAL        = "\033[38;5;73m"     # command names in help
 
+# Background variants (for filled text / panels)
+ORANGE_BG   = "\033[48;5;208m"
+
 # ------------------------------------------------------------------
 # Semantic aliases
 # ------------------------------------------------------------------

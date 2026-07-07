@@ -50,10 +50,10 @@ class TestConfig(unittest.TestCase):
         self.assertTrue(mod.CONFIG_FILE.exists())
 
     def test_only_two_default_fields(self):
-        """Config should only have api_key and model."""
+        """Config should have api_key, model, and workspace_path."""
         mod = self._cfg()
         cfg = mod.load_config()
-        self.assertEqual(set(cfg.keys()), {"api_key", "model"})
+        self.assertEqual(set(cfg.keys()), {"api_key", "model", "workspace_path"})
 
     def test_save_and_reload(self):
         mod = self._cfg()

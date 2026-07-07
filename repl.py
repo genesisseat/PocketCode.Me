@@ -6,10 +6,7 @@ Thick double-line borders, warm orange/amber palette, spacious layout.
 
 import json
 import shutil
-import sys
 import textwrap
-import urllib.error
-import urllib.request
 
 from api import APIError, GEMINI_BASE_URL, send_message
 from colors import (
@@ -37,8 +34,12 @@ from colors import (
     RESET,
     c,
     strip_ansi,
+    ORANGE_BG,
+    WHITE,
 )
 from config import load_config, save_config, show_config
+import workspace
+import tools
 from history import (
     _get_current_session_id,
     _session_path,
@@ -106,11 +107,22 @@ def _box_bottom(w: int) -> str:
     return c(COL_DIM, f"{BOX_BL}{BOX_H * (w - 2)}{BOX_BR}")
 
 
-def _box_line(text: str, w: int) -> str:
-    """A box line with padded text inside."""
+def _box_line(text: str, w: int, bg_fill: str = None, fg_for_text: str = "") -> str:
+    """A box line with padded text inside.
+
+    If `bg_fill` is provided (an ANSI background code like `ORANGE_BG`), the
+    inner area (text + padding) will be filled using that background. Pass
+    a foreground code in `fg_for_text` for readable text color on the fill.
+    """
     raw = strip_ansi(text)
     pad = max(0, w - 4 - len(raw))
-    return f"{c(COL_DIM, BOX_V)}  {text}{' ' * pad}{c(COL_DIM, BOX_V)}"
+    inner = f"  {text}{' ' * pad}"
+
+    if bg_fill and ANSI_ENABLED:
+        codes = (bg_fill + (fg_for_text or ""))
+        inner = c(codes, inner)
+
+    return f"{c(COL_DIM, BOX_V)}{inner}{c(COL_DIM, BOX_V)}"
 
 
 def _box_sep(w: int) -> str:
@@ -174,15 +186,17 @@ def _print_banner(cfg: dict) -> None:
     print()
     print(_box_top(w))
 
-    # Banner art lines
-    for line in BANNER_ART.strip().splitlines():
-        print(_box_line(c(COL_HEADER, line), w))
+    # Banner art lines (remove common leading indentation so art aligns)
+    for line in textwrap.dedent(BANNER_ART).strip().splitlines():
+        txt = line.rstrip()
+        # Fill only the literal 'PocketCode' title line with orange background
+        if "PocketCode" in txt:
+            print(_box_line(txt, w, bg_fill=ORANGE_BG, fg_for_text=WHITE))
+        else:
+            print(_box_line(c(COL_HEADER, txt), w))
 
     print(_box_line("", w))
-    print(_box_line(
-        c(COL_DIM, f"Gemini CLI for Termux {DOT} v1.0"),
-        w
-    ))
+    print(_box_line(f"Gemini CLI for Termux {DOT} v1.0", w, bg_fill=ORANGE_BG, fg_for_text=WHITE))
     print(_box_sep(w))
 
     # Status rows
@@ -201,10 +215,7 @@ def _print_banner(cfg: dict) -> None:
     ))
 
     print(_box_sep(w))
-    print(_box_line(
-        c(COL_DIM, f"Type a message to chat {DOT} /help for commands"),
-        w
-    ))
+    print(_box_line(f"Type a message to chat {DOT} /help for commands", w, bg_fill=ORANGE_BG, fg_for_text=WHITE))
     print(_box_bottom(w))
     print()
 
@@ -417,10 +428,24 @@ def chat_turn(user_input: str, session_id: str, cfg: dict) -> None:
     print()
 
     try:
-        reply = send_message(messages, cfg=cfg)
+        # Enable tool-calling and provide a status callback for UI updates
+        reply = send_message(
+            messages,
+            cfg=cfg,
+            tools_enabled=True,
+            status_cb=lambda s: _sys_msg(s),
+        )
     except APIError as exc:
         print(c(COL_DIM, _hline(BOX_SEP)))
         _err_msg(str(exc))
+        # If the API returned raw content include a truncated preview to aid debugging
+        raw = getattr(exc, "raw", None)
+        if raw:
+            try:
+                preview = raw if len(raw) < 1000 else raw[:1000] + "\n...[truncated]"
+            except Exception:
+                preview = str(raw)
+            print(f"  [api raw] {preview}")
         _sys_msg("Check /config or run /key to fix.")
         print(c(COL_DIM, _hline(BOX_SEP)))
         print()
@@ -468,6 +493,13 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cfg = cmd_key(args, cfg)
     elif cmd == "model":
         cfg = cmd_model(cfg)
+    elif cmd == "workspace":
+        # /workspace [path] - set or show current workspace
+        if args:
+            cfg = workspace.set_workspace(args)
+        else:
+            ws = cfg.get("workspace_path") or "(not set)"
+            _sys_msg(f"Workspace: {ws}")
     elif cmd == "new":
         session_id = cmd_new()
     elif cmd == "history":

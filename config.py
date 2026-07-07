@@ -33,6 +33,7 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 DEFAULTS: dict = {
     "api_key": "",
     "model":   "gemini-2.5-flash",
+    "workspace_path": str(CONFIG_DIR / "workspace"),
 }
 
 
@@ -198,4 +199,7 @@ def show_config(cfg: dict = None) -> None:
     for k, v in display.items():
         print(f"|  {k:<12} : {v}")
     print(f"|  config_file : {CONFIG_FILE}")
+    # show workspace path explicitly
+    ws = display.get("workspace_path", "(not set)")
+    print(f"|  workspace_path: {ws}")
     print("+---------------------------------------------------------------\n")

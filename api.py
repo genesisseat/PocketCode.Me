@@ -60,19 +60,35 @@ def _to_gemini_contents(messages: list) -> list:
     contents = []
     for msg in messages:
         role = msg.get("role", "")
-        text = msg.get("content", "")
+        content = msg.get("content", "")
 
-        # Skip anything that isn't a valid Gemini role
-        if role not in ("user", "model"):
-            continue
-        # Skip empty messages
-        if not text:
+        # user messages -> text parts
+        if role == "user":
+            if not content:
+                continue
+            parts = [{"text": str(content)}]
+
+        # model messages -> could be text or a functionCall part
+        elif role == "model":
+            if isinstance(content, dict) and "functionCall" in content:
+                parts = [content]
+            else:
+                if not content:
+                    continue
+                parts = [{"text": str(content)}]
+
+        # function messages -> functionResponse part
+        elif role == "function":
+            # content expected to be a dict like {"name": ..., "response": {...}}
+            if not isinstance(content, dict):
+                continue
+            parts = [{"functionResponse": content}]
+
+        else:
+            # skip any unknown roles
             continue
 
-        contents.append({
-            "role": role,
-            "parts": [{"text": text}],
-        })
+        contents.append({"role": role, "parts": parts})
 
     return contents
 
@@ -164,6 +180,8 @@ def send_message(
     messages: list,
     cfg: dict = None,
     timeout: int = 60,
+    tools_enabled: bool = False,
+    status_cb=None,
 ) -> str:
     """
     Send *messages* to the Gemini API and return the reply text.
@@ -212,6 +230,28 @@ def send_message(
         raise APIError("No valid messages to send.")
 
     payload = {"contents": contents}
+
+    # Optionally include function/tool declarations so the model knows what it can call
+    if tools_enabled:
+        try:
+            from tools import get_tools_schema
+            payload["tools"] = get_tools_schema()
+            # Add a conservative system instruction to encourage using tools
+            # for file creation tasks. This steers Gemini to call functions
+            # like create_folder / write_file instead of emitting code as text.
+            payload["systemInstruction"] = {
+                "parts": [
+                    {
+                        "text": (
+                            "When the user asks to build, create, or set up files or a project, "
+                            "use the available file tools (create_folder, write_file, append_file, delete_file, move_or_rename) "
+                            "to perform the actions in the workspace. Do not only print code as text unless the user explicitly asks to see or explain the code without creating files."
+                        )
+                    }
+                ]
+            }
+        except Exception:
+            pass
     body = json.dumps(payload).encode("utf-8")
 
     headers = {"Content-Type": "application/json"}
@@ -251,6 +291,120 @@ def send_message(
             f"Could not parse JSON response: {exc}\nRaw: {raw_body[:500]}"
         ) from exc
 
+    # If function-calling is enabled, process structured `functionCall` parts
+    # Note: thoughtSignature handling removed. We will not inject or modify
+    # the model's `functionCall` object. To avoid schema validation issues,
+    # we append only the `function` (functionResponse) turn back to the
+    # conversation and let Gemini continue. This keeps the payload minimal
+    # and avoids sending fields the API rejects.
+
+    if tools_enabled:
+        calls = 0
+        max_calls = 10
+        # operate on a mutable copy of messages so we can append the model/function turns
+        convo = list(messages)
+
+        while calls < max_calls:
+            # Inspect response parts for a functionCall
+            try:
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    raise APIError("Empty candidates in response")
+                candidate = candidates[0]
+                parts = candidate["content"].get("parts", [])
+            except Exception as exc:
+                raise APIError(f"Malformed response while checking for functionCall: {exc}") from exc
+
+            # If the first part contains a structured functionCall, handle it
+            first_part = parts[0] if parts else {}
+            if "functionCall" not in first_part:
+                # No function call -> return the text reply
+                try:
+                    return _parse_gemini_response(data)
+                except ValueError as exc:
+                    raise APIError(str(exc)) from exc
+
+            fc = first_part["functionCall"]
+            fname = fc.get("name")
+            fargs = fc.get("args") or {}
+
+            # Notify caller (REPL) about the planned tool call
+            if status_cb:
+                try:
+                    status_cb(f"→ invoking {fname} ...")
+                except Exception:
+                    pass
+
+            # Execute the function via tools module
+            try:
+                import tools as _tools
+                func = getattr(_tools, fname, None)
+                if func is None:
+                    result = {"error": f"Unknown tool: {fname}"}
+                else:
+                    # Call tool with kwargs. The tools functions handle confirmations.
+                    result = func(**fargs)
+            except Exception as exc:
+                result = {"error": str(exc)}
+
+            # Build both the model's functionCall turn and the functionResponse turn
+            if result == "declined":
+                func_resp = {"name": fname, "response": {"error": "User declined this action."}}
+            else:
+                # Ensure response is an object per spec
+                try:
+                    # If result is a simple string, wrap it
+                    if isinstance(result, str):
+                        resp_obj = {"result": result}
+                    else:
+                        resp_obj = {"result": result}
+                except Exception:
+                    resp_obj = {"result": str(result)}
+
+                func_resp = {"name": fname, "response": resp_obj}
+
+            model_turn = {"role": "model", "content": first_part}
+            function_turn = {"role": "function", "content": func_resp}
+
+            # Append both the model call turn and the function response turn to the conversation
+            convo.append(model_turn)
+            convo.append(function_turn)
+
+            contents = _to_gemini_contents(convo)
+            payload = {"contents": contents}
+            # re-attach tools declarations on each loop per Gemini spec
+            try:
+                from tools import get_tools_schema
+                payload["tools"] = get_tools_schema()
+            except Exception:
+                pass
+
+            try:
+                body = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    raw_body = resp.read().decode("utf-8")
+            except urllib.error.HTTPError as exc:
+                raw_body = exc.read().decode("utf-8", errors="replace")
+                try:
+                    err_data = json.loads(raw_body)
+                    detail = err_data.get("error", {}).get("message") or raw_body[:300]
+                except Exception:
+                    detail = raw_body[:300]
+                raise APIError(_friendly_message(exc.code, detail), status_code=exc.code, raw=raw_body) from exc
+            except Exception as exc:
+                raise APIError(f"Error while continuing function-call loop: {exc}") from exc
+
+            try:
+                data = json.loads(raw_body)
+            except Exception as exc:
+                raise APIError(f"Error parsing continued response: {exc}") from exc
+
+            calls += 1
+
+        raise APIError("Max function-call loop reached")
+
+    # Default (tools disabled): return textual reply
     try:
         return _parse_gemini_response(data)
     except ValueError as exc:
