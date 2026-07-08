@@ -236,6 +236,16 @@ def send_message(
         try:
             from tools import get_tools_schema
             payload["tools"] = get_tools_schema()
+            # Build an allow-list of function names declared in the tools schema.
+            allowed_tool_names = set()
+            try:
+                for t in payload.get("tools", []):
+                    for fd in t.get("functionDeclarations", []):
+                        n = fd.get("name")
+                        if n:
+                            allowed_tool_names.add(n)
+            except Exception:
+                allowed_tool_names = set()
             # Add a conservative system instruction to encourage using tools
             # for file creation tasks. This steers Gemini to call functions
             # like create_folder / write_file instead of emitting code as text.
@@ -338,12 +348,16 @@ def send_message(
             # Execute the function via tools module
             try:
                 import tools as _tools
-                func = getattr(_tools, fname, None)
-                if func is None:
-                    result = {"error": f"Unknown tool: {fname}"}
+                # Ensure the model-declared function is allowed by the schema
+                if allowed_tool_names and fname not in allowed_tool_names:
+                    result = {"error": f"Tool not allowed: {fname}"}
                 else:
-                    # Call tool with kwargs. The tools functions handle confirmations.
-                    result = func(**fargs)
+                    func = getattr(_tools, fname, None)
+                    if func is None:
+                        result = {"error": f"Unknown tool: {fname}"}
+                    else:
+                        # Call tool with kwargs. The tools functions handle confirmations.
+                        result = func(**fargs)
             except Exception as exc:
                 result = {"error": str(exc)}
 
@@ -376,6 +390,16 @@ def send_message(
             try:
                 from tools import get_tools_schema
                 payload["tools"] = get_tools_schema()
+                # Recompute allowed tool names for the continued payload
+                allowed_tool_names = set()
+                try:
+                    for t in payload.get("tools", []):
+                        for fd in t.get("functionDeclarations", []):
+                            n = fd.get("name")
+                            if n:
+                                allowed_tool_names.add(n)
+                except Exception:
+                    allowed_tool_names = set()
             except Exception:
                 pass
 
