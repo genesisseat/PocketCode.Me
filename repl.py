@@ -7,6 +7,7 @@ Thick double-line borders, warm orange/amber palette, spacious layout.
 import json
 import shutil
 import textwrap
+import urllib.request
 
 from api import APIError, GEMINI_BASE_URL, send_message
 from colors import (
