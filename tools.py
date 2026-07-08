@@ -13,6 +13,11 @@ import os
 from typing import List
 
 from workspace import resolve_path
+from config import load_config
+import subprocess
+import urllib.parse
+import urllib.request
+import json
 
 
 def _confirm(prompt: str) -> bool:
@@ -186,6 +191,108 @@ def get_tools_schema() -> list:
         },
     ]
 
+    # Optionally include a web search tool and a shell execution tool
+    cfg = load_config()
+    if cfg.get("enable_search"):
+        fns.append(
+            {
+                "name": "duckduckgo_search",
+                "description": "Perform a web search using DuckDuckGo Instant Answer API and return summarized results.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "query": {"type": "STRING", "description": "Search query string"},
+                        "max_results": {"type": "NUMBER", "description": "Max number of results to return"},
+                    },
+                    "required": ["query"],
+                },
+            }
+        )
+
+    if cfg.get("enable_shell"):
+        fns.append(
+            {
+                "name": "run_shell",
+                "description": "Run a shell command on the local machine (requires user confirmation). Returns stdout or an error message.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "command": {"type": "STRING", "description": "Shell command to run"},
+                    },
+                    "required": ["command"],
+                },
+            }
+        )
+
     # Gemini expects tools to be an array containing an object with
     # `functionDeclarations` as shown in the spec.
     return [{"functionDeclarations": fns}]
+
+
+def duckduckgo_search(query: str, max_results: int = 5):
+    """Perform a simple DuckDuckGo Instant Answer API query and return summarized results."""
+    if not query:
+        raise ValueError("Missing query")
+
+    params = {"q": query, "format": "json", "no_html": 1, "skip_disambig": 1}
+    url = "https://api.duckduckgo.com/?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, method="GET", headers={"User-Agent": "PocketCode/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        return {"error": f"Search failed: {exc}"}
+
+    results = []
+    # Preferred place: AbstractText or RelatedTopics
+    abstract = data.get("AbstractText", "")
+    if abstract:
+        results.append({"title": data.get("Heading", "Summary"), "snippet": abstract, "url": data.get("AbstractURL", "")})
+
+    related = data.get("RelatedTopics", [])
+    for item in related:
+        if isinstance(item, dict):
+            if "Text" in item:
+                results.append({"title": item.get("Text"), "snippet": item.get("Text"), "url": item.get("FirstURL", "")})
+            elif "Topics" in item:
+                for t in item.get("Topics", [])[:max_results]:
+                    results.append({"title": t.get("Text"), "snippet": t.get("Text"), "url": t.get("FirstURL", "")})
+        if len(results) >= max_results:
+            break
+
+    # Fallback: Results field
+    ddg_results = data.get("Results", [])
+    for r in ddg_results:
+        if len(results) >= max_results:
+            break
+        results.append({"title": r.get("Text", ""), "snippet": r.get("Text", ""), "url": r.get("FirstURL", "")})
+
+    # Trim to max_results
+    results = results[:max_results]
+    if not results:
+        return {"query": query, "results": []}
+    return {"query": query, "results": results}
+
+
+def run_shell(command: str):
+    """Run a shell command after user confirmation. Returns stdout or error."""
+    if not command:
+        raise ValueError("Missing command")
+
+    try:
+        ans = input(f"Run shell command? '{command}' [y/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return "declined"
+    if ans not in ("y", "yes"):
+        return "declined"
+
+    try:
+        # Run command through shell for convenience but capture output
+        proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+        out = proc.stdout or ""
+        err = proc.stderr or ""
+        if proc.returncode != 0:
+            return {"error": f"Exit {proc.returncode}", "stderr": err, "stdout": out}
+        return {"stdout": out}
+    except Exception as exc:
+        return {"error": str(exc)}

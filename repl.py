@@ -229,6 +229,8 @@ def cmd_help() -> None:
     cmds = [
         (f"/help",           "Show this help"),
         (f"/config",         "View current model and masked API key"),
+        (f"/toggle-search",  "Enable/disable web search tool for the assistant"),
+        (f"/toggle-shell",   "Enable/disable shell execution tool for the assistant"),
         (f"/key <api_key>",  "Set or update your Google AI Studio key"),
         (f"/model",          "List available models and switch"),
         (f"/new",            "Start a new conversation session"),
@@ -258,6 +260,8 @@ def cmd_config(cfg: dict) -> None:
     lines = [
         f"  {c(COL_SYS, 'API Key')}  {masked}",
         f"  {c(COL_SYS, 'Model')}    {c(COL_MODEL, model)}",
+        f"  {c(COL_SYS, 'Search')}   {c(COL_INFO, 'ON') if cfg.get('enable_search') else c(COL_DIM, 'OFF')}",
+        f"  {c(COL_SYS, 'Shell')}    {c(COL_INFO, 'ON') if cfg.get('enable_shell') else c(COL_DIM, 'OFF')}",
     ]
     _print_box("Configuration", lines)
 
@@ -285,6 +289,26 @@ def cmd_key(args: str, cfg: dict) -> dict:
     cfg["api_key"] = key
     save_config(cfg)
     _ok_msg("API key updated.")
+    return cfg
+
+
+def cmd_toggle_search(cfg: dict) -> dict:
+    """Toggle the `enable_search` config flag."""
+    on = bool(cfg.get("enable_search"))
+    cfg["enable_search"] = not on
+    save_config(cfg)
+    state = "enabled" if cfg["enable_search"] else "disabled"
+    _ok_msg(f"Web search tool {state}.")
+    return cfg
+
+
+def cmd_toggle_shell(cfg: dict) -> dict:
+    """Toggle the `enable_shell` config flag."""
+    on = bool(cfg.get("enable_shell"))
+    cfg["enable_shell"] = not on
+    save_config(cfg)
+    state = "enabled" if cfg["enable_shell"] else "disabled"
+    _ok_msg(f"Shell execution tool {state}.")
     return cfg
 
 
@@ -492,6 +516,10 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cmd_config(cfg)
     elif cmd == "key":
         cfg = cmd_key(args, cfg)
+    elif cmd == "toggle-search":
+        cfg = cmd_toggle_search(cfg)
+    elif cmd == "toggle-shell":
+        cfg = cmd_toggle_shell(cfg)
     elif cmd == "model":
         cfg = cmd_model(cfg)
     elif cmd == "workspace":
