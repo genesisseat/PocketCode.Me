@@ -225,12 +225,18 @@ def _print_banner(cfg: dict) -> None:
 # /help
 # ------------------------------------------------------------------
 
-def cmd_help() -> None:
+def cmd_help(cfg: dict | None = None) -> None:
+    if cfg is None:
+        cfg = load_config()
+
+    search_state = c(COL_INFO, "ON") if cfg.get("enable_search") else c(COL_DIM, "OFF")
+    shell_state = c(COL_INFO, "ON") if cfg.get("enable_shell") else c(COL_DIM, "OFF")
+
     cmds = [
         (f"/help",           "Show this help"),
         (f"/config",         "View current model and masked API key"),
-        (f"/toggle-search",  "Enable/disable web search tool for the assistant"),
-        (f"/toggle-shell",   "Enable/disable shell execution tool for the assistant"),
+        (f"/toggle-search",  None),
+        (f"/toggle-shell",   None),
         (f"/key <api_key>",  "Set or update your Google AI Studio key"),
         (f"/model",          "List available models and switch"),
         (f"/new",            "Start a new conversation session"),
@@ -238,9 +244,18 @@ def cmd_help() -> None:
         (f"/clear",          "Clear the current conversation"),
         (f"/exit",           "Quit PocketCode"),
     ]
+
     lines = []
     for cmd, desc in cmds:
-        lines.append(f"  {c(COL_CMD, cmd):<30}  {c(COL_SYS, desc)}")
+        if cmd == "/toggle-search":
+            desc_text = f"Enable/disable web search tool for the assistant {search_state}"
+            lines.append(f"  {c(COL_CMD, cmd):<30}  {desc_text}")
+        elif cmd == "/toggle-shell":
+            desc_text = f"Enable/disable shell execution tool for the assistant {shell_state}"
+            lines.append(f"  {c(COL_CMD, cmd):<30}  {desc_text}")
+        else:
+            lines.append(f"  {c(COL_CMD, cmd):<30}  {c(COL_SYS, desc)}")
+
     _print_box("Commands", lines)
 
 
