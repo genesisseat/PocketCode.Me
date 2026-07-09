@@ -8,11 +8,12 @@ A lightweight command-line AI assistant built for **Termux** on Android. PocketC
 
 - 🔑 **Single API key** — one Google AI Studio key stored locally, updateable anytime
 - 🧠 **Model picker** — switch between available Gemini/Gemma text models on the fly
+- 🎨 **Theme picker** — switch between five built-in terminal themes for text and interface colors
 - 💬 **Persistent conversation memory** — chat history is saved to disk and reloaded automatically, even after closing the app
 - 🧵 **Session management** — start a new conversation anytime without losing the old one
-- � **Project folders** — manage a shared projects root, switch between projects, and keep each project as its own workspace
+- 📁 **Project folders** — manage a shared projects root, switch between projects, and keep each project as its own workspace
 - 🛠️ **Tool use** — optional file tools, DuckDuckGo web search, and shell execution can be enabled per session via slash commands
-- �📱 **Phone-first design** — minimal typing, slash-commands instead of long CLI flags
+- 📱 **Phone-first design** — minimal typing, slash-commands instead of long CLI flags
 - 🚫 **No usage tracking** — no local quota counters; Google's own rate limits apply and are simply surfaced as friendly errors if hit
 
 ---
@@ -21,7 +22,7 @@ A lightweight command-line AI assistant built for **Termux** on Android. PocketC
 
 - [Termux](https://termux.dev/) installed on Android
 - Python 3.10+
-- `pip install requests`
+- `pip install -r requirements.txt`
 
 ---
 
@@ -30,7 +31,7 @@ A lightweight command-line AI assistant built for **Termux** on Android. PocketC
 ```bash
 pkg update && pkg upgrade
 pkg install python
-pip install requests
+pip install -r requirements.txt
 
 git clone <your-repo-url> pocketcode
 cd pocketcode
@@ -66,23 +67,22 @@ AI: Hi there! How can I help you today?
 | Command             | Description                                      |
 |----------------------|--------------------------------------------------|
 | `/help`              | Show all available commands                       |
-| `/config`            | View current model, tool toggle states, and paths |
-| `/toggle-search`     | Toggle the web search tool for the assistant (shown ON/OFF in `/help` and `/config`) |
-| `/toggle-shell`      | Toggle the shell execution tool for the assistant (shown ON/OFF in `/help` and `/config`) |
+| `/config`            | View your current model, theme, tool states, and paths |
+| `/toggle-search`     | Toggle the web-search tool for the assistant (shown ON/OFF in `/help` and `/config`) |
+| `/toggle-shell`      | Toggle the shell-execution tool for the assistant (shown ON/OFF in `/help` and `/config`) |
+| `/theme`             | Show available themes or switch to one of the built-in presets |
 | `/key <api_key>`     | Set/update your Google AI Studio API key (inline or prompted) |
 | `/model`             | Pick from live-fetched or hardcoded Gemini/Gemma models |
 | `/workspace [path]`  | Set or show the active project folder            |
 | `/projects-root [path]` | Set or show the parent folder that holds all projects |
 | `/projects`          | List existing projects and switch to one         |
 | `/projects <name>`   | Create/select a project under the projects root  |
-| `/toggle-search`     | Toggle the web-search tool for the assistant (ON/OFF) |
-| `/toggle-shell`      | Toggle the shell-execution tool for the assistant (ON/OFF) |
 | `/new`               | Start a new conversation (previous one is saved)  |
 | `/history`           | Show current session messages with colored YOU/MODEL labels |
 | `/clear`             | Wipe the current session                          |
 | `/exit`              | Save and quit                                     |
 
-> File tools, project selection, and optional search/shell tools are now available when enabled.
+> Built-in themes include `claude-dark`, `claude-light`, `dracula`, `solarized-dark`, and `tokyo-night`.
 
 ---
 
@@ -92,7 +92,7 @@ PocketCode stores config and history locally on-device — nothing is sent anywh
 
 ```
 ~/.pocketcode/
-├── config.json        # api_key, model, workspace_path, projects_root, and tool toggles
+├── config.json        # api_key, model, theme, workspace_path, projects_root, and tool toggles
 └── sessions/
     ├── 2026-07-01_142300.jsonl
     └── 2026-07-06_091500.jsonl
@@ -103,6 +103,7 @@ PocketCode stores config and history locally on-device — nothing is sent anywh
 {
   "api_key": "AIza...",
   "model": "gemini-3.1-flash-lite",
+  "theme": "claude-dark",
   "workspace_path": "/home/user/pocketcode-projects/coffee-shop",
   "projects_root": "/home/user/pocketcode-projects"
 }
@@ -214,7 +215,7 @@ cd pocketcode
 python -m pytest tests/
 ```
 
-Currently 46 tests pass and 1 is skipped, covering config load/save, history role validation, Gemini request/response formatting, error-code mapping, workspace/project switching, and REPL command dispatch.
+Currently 38 tests pass, covering config load/save, history role validation, Gemini request/response formatting, error-code mapping, workspace/project switching, theme switching, and REPL command dispatch.
 
 ---
 
