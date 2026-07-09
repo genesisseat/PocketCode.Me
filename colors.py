@@ -66,44 +66,126 @@ BOLD  = "\033[1m"
 DIM   = "\033[2m"
 
 # ------------------------------------------------------------------
-# Claude Code-inspired 256-color palette
+# Theme presets
 # ------------------------------------------------------------------
 
-# Primary accent: warm orange/amber (Claude's signature)
-ORANGE      = "\033[38;5;208m"    # #FF8700
-AMBER       = "\033[38;5;214m"    # #FFAF00
-PEACH       = "\033[38;5;216m"    # #FFAF87
+THEMES = {
+    "claude-dark": {
+        "ORANGE": "\033[38;5;208m",
+        "AMBER": "\033[38;5;214m",
+        "PEACH": "\033[38;5;216m",
+        "WHITE": "\033[38;5;255m",
+        "LIGHT_GRAY": "\033[38;5;250m",
+        "MID_GRAY": "\033[38;5;243m",
+        "DARK_GRAY": "\033[38;5;238m",
+        "SOFT_BLUE": "\033[38;5;111m",
+        "SOFT_GREEN": "\033[38;5;114m",
+        "SOFT_RED": "\033[38;5;203m",
+        "SOFT_PURPLE": "\033[38;5;141m",
+        "TEAL": "\033[38;5;73m",
+        "ORANGE_BG": "\033[48;5;208m",
+    },
+    "claude-light": {
+        "ORANGE": "\033[38;5;166m",
+        "AMBER": "\033[38;5;172m",
+        "PEACH": "\033[38;5;180m",
+        "WHITE": "\033[38;5;236m",
+        "LIGHT_GRAY": "\033[38;5;238m",
+        "MID_GRAY": "\033[38;5;240m",
+        "DARK_GRAY": "\033[38;5;245m",
+        "SOFT_BLUE": "\033[38;5;67m",
+        "SOFT_GREEN": "\033[38;5;65m",
+        "SOFT_RED": "\033[38;5;124m",
+        "SOFT_PURPLE": "\033[38;5;61m",
+        "TEAL": "\033[38;5;30m",
+        "ORANGE_BG": "\033[48;5;223m",
+    },
+    "dracula": {
+        "ORANGE": "\033[38;5;212m",
+        "AMBER": "\033[38;5;215m",
+        "PEACH": "\033[38;5;218m",
+        "WHITE": "\033[38;5;255m",
+        "LIGHT_GRAY": "\033[38;5;252m",
+        "MID_GRAY": "\033[38;5;246m",
+        "DARK_GRAY": "\033[38;5;238m",
+        "SOFT_BLUE": "\033[38;5;117m",
+        "SOFT_GREEN": "\033[38;5;84m",
+        "SOFT_RED": "\033[38;5;203m",
+        "SOFT_PURPLE": "\033[38;5;141m",
+        "TEAL": "\033[38;5;45m",
+        "ORANGE_BG": "\033[48;5;61m",
+    },
+    "solarized-dark": {
+        "ORANGE": "\033[38;5;136m",
+        "AMBER": "\033[38;5;142m",
+        "PEACH": "\033[38;5;180m",
+        "WHITE": "\033[38;5;254m",
+        "LIGHT_GRAY": "\033[38;5;245m",
+        "MID_GRAY": "\033[38;5;240m",
+        "DARK_GRAY": "\033[38;5;238m",
+        "SOFT_BLUE": "\033[38;5;67m",
+        "SOFT_GREEN": "\033[38;5;64m",
+        "SOFT_RED": "\033[38;5;124m",
+        "SOFT_PURPLE": "\033[38;5;61m",
+        "TEAL": "\033[38;5;37m",
+        "ORANGE_BG": "\033[48;5;60m",
+    },
+    "tokyo-night": {
+        "ORANGE": "\033[38;5;216m",
+        "AMBER": "\033[38;5;179m",
+        "PEACH": "\033[38;5;181m",
+        "WHITE": "\033[38;5;255m",
+        "LIGHT_GRAY": "\033[38;5;252m",
+        "MID_GRAY": "\033[38;5;246m",
+        "DARK_GRAY": "\033[38;5;239m",
+        "SOFT_BLUE": "\033[38;5;117m",
+        "SOFT_GREEN": "\033[38;5;114m",
+        "SOFT_RED": "\033[38;5;203m",
+        "SOFT_PURPLE": "\033[38;5;141m",
+        "TEAL": "\033[38;5;80m",
+        "ORANGE_BG": "\033[48;5;60m",
+    },
+}
 
-# Text
-WHITE       = "\033[38;5;255m"    # bright white
-LIGHT_GRAY  = "\033[38;5;250m"    # readable body text
-MID_GRAY    = "\033[38;5;243m"    # secondary / timestamps
-DARK_GRAY   = "\033[38;5;238m"    # borders, rules
+CURRENT_THEME = "claude-dark"
 
-# Accent colors
-SOFT_BLUE   = "\033[38;5;111m"    # info / session IDs
-SOFT_GREEN  = "\033[38;5;114m"    # success / "SET"
-SOFT_RED    = "\033[38;5;203m"    # errors / warnings
-SOFT_PURPLE = "\033[38;5;141m"    # model name
-TEAL        = "\033[38;5;73m"     # command names in help
 
-# Background variants (for filled text / panels)
-ORANGE_BG   = "\033[48;5;208m"
+def _apply_palette(theme_name: str) -> None:
+    palette = THEMES[theme_name]
+    for key, value in palette.items():
+        globals()[key] = value
 
-# ------------------------------------------------------------------
-# Semantic aliases
-# ------------------------------------------------------------------
+    globals()["COL_YOU"] = BOLD + AMBER
+    globals()["COL_AI"] = BOLD + PEACH
+    globals()["COL_SYS"] = MID_GRAY
+    globals()["COL_ERROR"] = BOLD + SOFT_RED
+    globals()["COL_HEADER"] = BOLD + ORANGE
+    globals()["COL_DIM"] = ORANGE
+    globals()["COL_MODEL"] = BOLD + SOFT_PURPLE
+    globals()["COL_CMD"] = TEAL
+    globals()["COL_OK"] = SOFT_GREEN
+    globals()["COL_INFO"] = SOFT_BLUE
 
-COL_YOU     = BOLD + AMBER          # "You" prompt / label
-COL_AI      = BOLD + PEACH          # "AI" label
-COL_SYS     = MID_GRAY              # system info messages
-COL_ERROR   = BOLD + SOFT_RED       # error messages
-COL_HEADER  = BOLD + ORANGE         # box headers / banner
-COL_DIM     = ORANGE                # borders, rules, decorative (Claude Code palette)
-COL_MODEL   = BOLD + SOFT_PURPLE    # model name
-COL_CMD     = TEAL                  # command names in /help
-COL_OK      = SOFT_GREEN            # success indicators
-COL_INFO    = SOFT_BLUE             # info text / session IDs
+
+def get_theme_names() -> list[str]:
+    return list(THEMES.keys())
+
+
+def get_current_theme() -> str:
+    return CURRENT_THEME
+
+
+def set_theme(theme_name: str | None = None) -> str:
+    normalized = (theme_name or "claude-dark").strip().lower()
+    if normalized not in THEMES:
+        raise ValueError(f"Unknown theme: {theme_name}")
+    globals()["CURRENT_THEME"] = normalized
+    _apply_palette(normalized)
+    return normalized
+
+
+# Initialize the default palette
+set_theme(CURRENT_THEME)
 
 
 # ------------------------------------------------------------------
