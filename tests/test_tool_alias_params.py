@@ -3,7 +3,7 @@ import urllib.request
 from api import send_message, APIError
 
 
-def test_gemini_function_call_preserves_thought_signature(monkeypatch):
+def test_gemini_function_call_forwards_thought_signature(monkeypatch):
     calls = []
 
     class DummyResp:
@@ -34,11 +34,9 @@ def test_gemini_function_call_preserves_thought_signature(monkeypatch):
                                         'args': {
                                             'path': 'testsite'
                                         },
-                                        'thoughtSignature': {
-                                            'version': 1,
-                                            'sig': 'abc123'
-                                        }
-                                    }
+                                        'id': 'abc123'
+                                    },
+                                    'thoughtSignature': 'sig-abc123'
                                 }
                             ]
                         }
@@ -69,10 +67,24 @@ def test_gemini_function_call_preserves_thought_signature(monkeypatch):
     assert len(calls) == 2
 
     second_payload = json.loads(calls[1])
-    assert second_payload['contents'][1]['parts'][0]['functionCall']['thoughtSignature'] == {
-        'version': 1,
-        'sig': 'abc123'
-    }
+    part = second_payload['contents'][1]['parts'][0]
+    function_call = part['functionCall']
+    assert function_call['name'] == 'create_folder'
+    assert function_call['args'] == {'path': 'testsite'}
+    assert function_call['id'] == 'abc123'
+    assert part['thoughtSignature'] == 'sig-abc123'
+    assert 'thought_signature' not in function_call
+    assert 'thoughtSignature' not in function_call
+
+
+def test_normalize_function_call_strips_thought_signature_fields():
+    from api import _normalize_function_call
+
+    normalized = _normalize_function_call({'name': 'create_project', 'args': {'name': 'demo'}})
+
+    assert normalized == {'name': 'create_project', 'args': {'name': 'demo'}}
+    assert 'thought_signature' not in normalized
+    assert 'thoughtSignature' not in normalized
 
 
 def test_create_folder_tool_accepts_path_arg(tmp_path, monkeypatch):

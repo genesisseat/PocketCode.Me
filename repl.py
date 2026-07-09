@@ -1,7 +1,7 @@
 """
-repl.py -- PocketCode Gemini CLI (Claude Code-style interface)
-===============================================================
-Thick double-line borders, warm orange/amber palette, spacious layout.
+repl.py -- PocketCode Gemini CLI (minimal interface)
+===================================================
+Compact, low-visual-noise terminal UI with simple borders and concise status blocks.
 """
 
 import json
@@ -9,10 +9,36 @@ import shutil
 import textwrap
 import urllib.request
 
-import colors
 from api import APIError, GEMINI_BASE_URL, send_message
+from colors import (
+    ANSI_ENABLED,
+    ARROW,
+    BOX_BL,
+    BOX_BR,
+    BOX_H,
+    BOX_SEP,
+    BOX_TL,
+    BOX_TR,
+    BOX_V,
+    BULLET,
+    COL_AI,
+    COL_CMD,
+    COL_DIM,
+    COL_ERROR,
+    COL_HEADER,
+    COL_INFO,
+    COL_MODEL,
+    COL_OK,
+    COL_SYS,
+    COL_YOU,
+    DOT,
+    RESET,
+    c,
+    strip_ansi,
+    ORANGE_BG,
+    WHITE,
+)
 from config import load_config, save_config, show_config
-from colors import c, strip_ansi
 import workspace
 import tools
 from history import (
@@ -41,65 +67,6 @@ FREE_TIER_MODELS = [
     {"id": "gemini-2.0-flash-lite",   "name": "Gemini 2.0 Flash Lite", "daily": "500 RPD"},
     {"id": "gemma-3-27b-it",          "name": "Gemma 3 27B",           "daily": "500 RPD"},
 ]
-
-
-# ------------------------------------------------------------------
-# Theme application
-# ------------------------------------------------------------------
-
-_THEME_EXPORTS = [
-    "ANSI_ENABLED",
-    "ARROW",
-    "BOX_BL",
-    "BOX_BR",
-    "BOX_H",
-    "BOX_SEP",
-    "BOX_TL",
-    "BOX_TR",
-    "BOX_V",
-    "BULLET",
-    "COL_AI",
-    "COL_CMD",
-    "COL_DIM",
-    "COL_ERROR",
-    "COL_HEADER",
-    "COL_INFO",
-    "COL_MODEL",
-    "COL_OK",
-    "COL_SYS",
-    "COL_YOU",
-    "DOT",
-    "RESET",
-    "ORANGE_BG",
-    "WHITE",
-    "COL_YOU",
-    "COL_AI",
-    "COL_SYS",
-    "COL_ERROR",
-    "COL_HEADER",
-    "COL_DIM",
-    "COL_MODEL",
-    "COL_CMD",
-    "COL_OK",
-    "COL_INFO",
-]
-
-
-def _apply_theme(cfg: dict) -> str:
-    theme_name = (cfg.get("theme") or "claude-dark").strip().lower()
-    try:
-        colors.set_theme(theme_name)
-    except ValueError:
-        colors.set_theme("claude-dark")
-        theme_name = "claude-dark"
-
-    for name in _THEME_EXPORTS:
-        globals()[name] = getattr(colors, name)
-
-    return theme_name
-
-
-_apply_theme({})
 
 
 # ------------------------------------------------------------------
@@ -202,54 +169,22 @@ def _ok_msg(text: str) -> None:
 # Banner
 # ------------------------------------------------------------------
 
-BANNER_ART = r"""
-     ____            _        _    ____          _
-    |  _ \ ___   ___| | _____| |_ / ___|___   __| | ___
-    | |_) / _ \ / __| |/ / _ \ __| |   / _ \ / _` |/ _ \
-    |  __/ (_) | (__|   <  __/ |_| |__| (_) | (_| |  __/
-    |_|   \___/ \___|_|\_\___|\__|\____\___/ \__,_|\___|
-"""
-
-
 def _print_banner(cfg: dict) -> None:
     w = _w()
     model   = cfg.get("model", "?")
     key_ok  = bool(cfg.get("api_key", "").strip())
     session = _get_current_session_id() or "none"
 
+    title = c(COL_HEADER, "PocketCode")
     print()
     print(_box_top(w))
-
-    # Banner art lines (remove common leading indentation so art aligns)
-    for line in textwrap.dedent(BANNER_ART).strip().splitlines():
-        txt = line.rstrip()
-        # Fill only the literal 'PocketCode' title line with orange background
-        if "PocketCode" in txt:
-            print(_box_line(txt, w, bg_fill=ORANGE_BG, fg_for_text=WHITE))
-        else:
-            print(_box_line(c(COL_HEADER, txt), w))
-
-    print(_box_line("", w))
-    print(_box_line(f"Gemini CLI for Termux {DOT} v1.0", w, bg_fill=ORANGE_BG, fg_for_text=WHITE))
+    print(_box_line(f"{title}  {c(COL_DIM, 'Gemini CLI for Termux')}", w))
     print(_box_sep(w))
-
-    # Status rows
-    key_status = c(COL_OK, "SET") if key_ok else c(COL_ERROR, "NOT SET")
-    print(_box_line(
-        f"{c(COL_SYS, 'Model')}   {c(COL_MODEL, model)}",
-        w
-    ))
-    print(_box_line(
-        f"{c(COL_SYS, 'Session')} {c(COL_INFO, session[:30])}",
-        w
-    ))
-    print(_box_line(
-        f"{c(COL_SYS, 'API Key')} {key_status}",
-        w
-    ))
-
+    print(_box_line(f"{c(COL_SYS, 'Model')}  {c(COL_MODEL, model)}", w))
+    print(_box_line(f"{c(COL_SYS, 'Session')}  {c(COL_INFO, session[:30])}", w))
+    print(_box_line(f"{c(COL_SYS, 'API Key')}  {'SET' if key_ok else 'NOT SET'}", w))
     print(_box_sep(w))
-    print(_box_line(f"Type a message to chat {DOT} /help for commands", w, bg_fill=ORANGE_BG, fg_for_text=WHITE))
+    print(_box_line(f"{c(COL_DIM, 'Type a message to chat')}  {c(COL_CMD, '/help')}", w))
     print(_box_bottom(w))
     print()
 
@@ -270,7 +205,6 @@ def cmd_help(cfg: dict | None = None) -> None:
         (f"/config",             "View current model and masked API key"),
         (f"/toggle-search",      None),
         (f"/toggle-shell",       None),
-        (f"/theme",              "Choose a UI color theme"),
         (f"/key <api_key>",      "Set or update your Google AI Studio key"),
         (f"/model",              "List available models and switch"),
         (f"/workspace [path]",   "Set or show the active project folder"),
@@ -313,7 +247,6 @@ def cmd_config(cfg: dict) -> None:
     lines = [
         f"  {c(COL_SYS, 'API Key')}  {masked}",
         f"  {c(COL_SYS, 'Model')}    {c(COL_MODEL, model)}",
-        f"  {c(COL_SYS, 'Theme')}    {c(COL_INFO, cfg.get('theme', 'claude-dark'))}",
         f"  {c(COL_SYS, 'Search')}   {c(COL_INFO, 'ON') if cfg.get('enable_search') else c(COL_DIM, 'OFF')}",
         f"  {c(COL_SYS, 'Shell')}    {c(COL_INFO, 'ON') if cfg.get('enable_shell') else c(COL_DIM, 'OFF')}",
         f"  {c(COL_SYS, 'Projects')} {c(COL_INFO, cfg.get('projects_root', '(not set)'))}",
@@ -365,44 +298,6 @@ def cmd_toggle_shell(cfg: dict) -> dict:
     save_config(cfg)
     state = "enabled" if cfg["enable_shell"] else "disabled"
     _ok_msg(f"Shell execution tool {state}.")
-    return cfg
-
-
-def cmd_theme(args: str, cfg: dict) -> dict:
-    """List available themes or switch to a specific theme."""
-    available = colors.get_theme_names()
-    current = colors.get_current_theme()
-
-    if args.strip().lower() in {"", "list", "help", "?"}:
-        lines = []
-        for name in available:
-            marker = c(COL_OK, " (current)") if name == current else ""
-            lines.append(f"  {c(COL_CMD, name)}{marker}")
-        _print_box("Themes", lines)
-
-        try:
-            raw = input(f"  {c(COL_SYS, 'Select theme [name or Enter to cancel]:')} ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            _sys_msg("Cancelled.")
-            return cfg
-
-        if not raw:
-            _sys_msg("Cancelled.")
-            return cfg
-
-        args = raw
-
-    requested = args.strip().lower()
-    if requested not in available:
-        _err_msg(f"Unknown theme: {args}")
-        _sys_msg(f"Available themes: {', '.join(available)}")
-        return cfg
-
-    cfg["theme"] = colors.set_theme(requested)
-    _apply_theme(cfg)
-    save_config(cfg)
-    _ok_msg(f"Theme changed to {cfg['theme']}.")
     return cfg
 
 
@@ -614,8 +509,6 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cfg = cmd_toggle_search(cfg)
     elif cmd == "toggle-shell":
         cfg = cmd_toggle_shell(cfg)
-    elif cmd == "theme":
-        cfg = cmd_theme(args, cfg)
     elif cmd == "model":
         cfg = cmd_model(cfg)
     elif cmd == "workspace":
@@ -687,7 +580,6 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
 def run_repl() -> None:
     """Launch the PocketCode interactive REPL."""
     cfg = load_config()
-    _apply_theme(cfg)
 
     session_id = _get_current_session_id()
     if not session_id:

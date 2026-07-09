@@ -41,6 +41,17 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 # Format conversion
 # ------------------------------------------------------------------
 
+def _normalize_function_call(function_call: dict) -> dict:
+    """Return a Gemini-compatible function call object using the documented schema."""
+    if not isinstance(function_call, dict):
+        return function_call
+
+    normalized = dict(function_call)
+    normalized.pop("thoughtSignature", None)
+    normalized.pop("thought_signature", None)
+    return normalized
+
+
 def _to_gemini_contents(messages: list) -> list:
     """
     Convert our saved history format into Gemini's contents/parts format.
@@ -70,8 +81,11 @@ def _to_gemini_contents(messages: list) -> list:
 
         # model messages -> could be text or a functionCall part
         elif role == "model":
-            if isinstance(content, dict) and "functionCall" in content:
-                parts = [content]
+            if isinstance(content, dict) and ("functionCall" in content or "function_call" in content):
+                updated_content = dict(content)
+                call_key = "function_call" if "function_call" in updated_content else "functionCall"
+                updated_content[call_key] = _normalize_function_call(updated_content[call_key])
+                parts = [updated_content]
             else:
                 if not content:
                     continue
@@ -328,14 +342,25 @@ def send_message(
 
             # If the first part contains a structured functionCall, handle it
             first_part = parts[0] if parts else {}
-            if "functionCall" not in first_part:
+            function_call = None
+            if "functionCall" in first_part:
+                function_call = first_part["functionCall"]
+            elif "function_call" in first_part:
+                function_call = first_part["function_call"]
+
+            if function_call is None:
                 # No function call -> return the text reply
                 try:
                     return _parse_gemini_response(data)
                 except ValueError as exc:
                     raise APIError(str(exc)) from exc
 
-            fc = first_part["functionCall"]
+            fc = _normalize_function_call(function_call)
+            thought_signature = None
+            if isinstance(first_part, dict):
+                thought_signature = first_part.get("thoughtSignature") or first_part.get("thought_signature")
+            if thought_signature is None and isinstance(function_call, dict):
+                thought_signature = function_call.get("thoughtSignature") or function_call.get("thought_signature")
             fname = fc.get("name")
             fargs = fc.get("args") or {}
 
@@ -378,7 +403,10 @@ def send_message(
 
                 func_resp = {"name": fname, "response": resp_obj}
 
-            model_turn = {"role": "model", "content": {"functionCall": fc}}
+            model_content = {"functionCall": fc}
+            if thought_signature is not None:
+                model_content["thoughtSignature"] = thought_signature
+            model_turn = {"role": "model", "content": model_content}
             function_turn = {"role": "function", "content": func_resp}
 
             # Append both the model call turn and the function response turn to the conversation
