@@ -34,6 +34,7 @@ DEFAULTS: dict = {
     "api_key": "",
     "model":   "gemini-2.5-flash",
     "workspace_path": str(CONFIG_DIR / "workspace"),
+    "projects_root": str(CONFIG_DIR / "projects"),
 }
 
 

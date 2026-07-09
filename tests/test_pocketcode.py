@@ -53,7 +53,7 @@ class TestConfig(unittest.TestCase):
         """Config should have api_key, model, and workspace_path."""
         mod = self._cfg()
         cfg = mod.load_config()
-        self.assertEqual(set(cfg.keys()), {"api_key", "model", "workspace_path"})
+        self.assertEqual(set(cfg.keys()), {"api_key", "model", "workspace_path", "projects_root"})
 
     def test_save_and_reload(self):
         mod = self._cfg()

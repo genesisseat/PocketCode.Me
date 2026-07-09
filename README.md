@@ -1,6 +1,5 @@
 # PocketCode
-<img width="595" height="285" alt="image" src="https://github.com/user-attachments/assets/1cd08efc-f925-46da-a509-1755272be83a" />
-
+![alt text](image.png)
 A lightweight command-line AI assistant built for **Termux** on Android. PocketCode connects to **Google AI Studio (Gemini/Gemma models)** using your own API key, and lets you chat directly from your phone's terminal — no browser, no app switching.
 
 ---
@@ -65,13 +64,21 @@ AI: Hi there! How can I help you today?
 | Command             | Description                                      |
 |----------------------|--------------------------------------------------|
 | `/help`              | Show all available commands                       |
-| `/config`            | View current model and masked API key              |
-| `/key <api_key>`     | Update your Google AI Studio API key               |
-| `/model`             | List available Gemini/Gemma models and switch      |
+| `/config`            | View current model, tool toggle states, and paths |
+| `/toggle-search`     | Toggle the web search tool for the assistant (shown ON/OFF in `/help` and `/config`) |
+| `/toggle-shell`      | Toggle the shell execution tool for the assistant (shown ON/OFF in `/help` and `/config`) |
+| `/key <api_key>`     | Set/update your Google AI Studio API key (inline or prompted) |
+| `/model`             | Pick from live-fetched or hardcoded Gemini/Gemma models |
+| `/workspace [path]`  | Set or show the active project folder            |
+| `/projects-root [path]` | Set or show the parent folder that holds all projects |
+| `/projects`          | List existing projects and switch to one         |
+| `/projects <name>`   | Create/select a project under the projects root  |
 | `/new`               | Start a new conversation (previous one is saved)  |
-| `/history`           | List saved conversation sessions                  |
-| `/clear`             | Clear the current conversation's history          |
+| `/history`           | Show current session messages with colored YOU/MODEL labels |
+| `/clear`             | Wipe the current session                          |
 | `/exit`              | Save and quit                                     |
+
+> `/workspace` (project folder + file tool use) is planned — see [Roadmap](#roadmap--ideas).
 
 ---
 
@@ -81,7 +88,7 @@ PocketCode stores config and history locally on-device — nothing is sent anywh
 
 ```
 ~/.pocketcode/
-├── config.json        # active provider name, endpoint URL, API key
+├── config.json        # api_key, model (and workspace_path once tool-use lands)
 └── sessions/
     ├── 2026-07-01_142300.jsonl
     └── 2026-07-06_091500.jsonl
@@ -91,7 +98,9 @@ PocketCode stores config and history locally on-device — nothing is sent anywh
 ```json
 {
   "api_key": "AIza...",
-  "model": "gemini-3.1-flash-lite"
+  "model": "gemini-3.1-flash-lite",
+  "workspace_path": "/home/user/pocketcode-projects/coffee-shop",
+  "projects_root": "/home/user/pocketcode-projects"
 }
 ```
 
@@ -134,6 +143,17 @@ The reply text is found at `candidates[0].content.parts[0].text` in the response
 
 PocketCode does **not** track usage locally — daily quotas reset on Google's side automatically. If a limit is hit, the API returns a `429` error, which PocketCode displays as a short friendly message rather than raw JSON.
 
+### Error Handling
+
+| HTTP Code | User sees |
+|---|---|
+| 401 | Invalid API key. Run `/key` to update it. |
+| 404 | Model not found. Run `/model` to pick a valid one. |
+| 429 | Rate limit reached — try again shortly. |
+| 500 / 503 | Gemini server error — try again in a moment. |
+| Timeout | Request timed out after 60s. |
+| Safety block | Request blocked by safety filter: `<reason>` |
+
 ---
 
 ## Conversation Memory
@@ -146,13 +166,77 @@ PocketCode does **not** track usage locally — daily quotas reset on Google's s
 
 ---
 
+## Project Folders and Workspace Selection
+
+PocketCode now supports a two-level project model:
+
+- `workspace_path` = the currently active project folder that file tools operate inside
+- `projects_root` = the parent folder that contains all your projects
+
+Use these commands to manage it:
+
+- `/projects-root <path>` — set the shared parent folder once
+- `/projects` — list existing projects and choose one to activate
+- `/projects <name>` — create/select a project folder under the projects root
+
+If the AI needs to work on a new project that doesn't exist yet, it can call the built-in `create_project` tool to create and activate it automatically.
+
+---
+
+## Project Structure
+
+```
+pocketcode/
+├── pocketcode.py       # entry point
+├── repl.py             # chat loop + slash command dispatch
+├── config.py           # load/save api_key, model, workspace_path
+├── history.py          # session persistence, role validation (user/model only)
+├── api.py              # Gemini generateContent calls, error mapping
+├── colors.py            # ANSI colors, auto-detects Termux/Windows
+├── pocketcode.sh        # shell wrapper (Termux/Linux/WSL/Git Bash)
+├── tests/
+│   └── test_pocketcode.py   # 36 tests: config, history, API, REPL
+└── sessions/             # saved .jsonl conversation logs
+```
+
+Planned additions for the workspace/tool-use feature:
+```
+├── workspace.py        # path sandboxing — confines all file ops to the active project folder
+├── tools.py            # list_dir, read_file, write_file, create_folder, delete_file, move_or_rename
+```
+
+---
+
+## Testing
+
+```bash
+cd pocketcode
+python -m pytest tests/
+```
+
+Currently 36/36 tests passing, covering config load/save, history role validation, Gemini request/response formatting, error-code mapping, and REPL command dispatch.
+
+---
+
 ## Roadmap / Ideas
 
-- [ ] ANSI color output for AI vs. system messages
+### In progress — Workspace & Tool Use
+Lets the AI create, read, edit, and organize files inside a project folder you set, so PocketCode can act as a coding assistant rather than just a chat window.
+
+- [ ] `/workspace <path>` — set the active project folder
+- [ ] File tools exposed to Gemini via function calling: `list_dir`, `read_file`, `write_file`, `append_file`, `create_folder`, `delete_file`, `move_or_rename`
+- [ ] Path sandboxing — every tool call is confined to the workspace root; attempts to escape it (`../`, absolute paths, symlinks) are rejected before touching disk
+- [ ] Confirmation prompt before **every** write/delete/move — shows a preview, requires `y/n`. Read-only operations (`list_dir`, `read_file`) run automatically
+- [ ] Max tool-call cap per turn (e.g. 10) to prevent runaway loops
+- [ ] `/config` also shows the active workspace path
+
+### Other ideas
 - [ ] Token-based (not just message-count-based) history trimming
 - [ ] Live-fetch available models from Google's `/models` endpoint instead of a hardcoded list
 - [ ] Optional encrypted key storage via `termux-api` / Android Keystore
 - [ ] Export a session to plain text or Markdown
+- [ ] Short diff view (instead of full content) in write-confirmation previews for long files
+- [ ] `/tools` command to list what the AI is currently allowed to do
 
 ---
 
