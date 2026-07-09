@@ -12,7 +12,7 @@ import shutil
 import os
 from typing import List
 
-from workspace import resolve_path
+from workspace import resolve_path, select_project
 from config import load_config
 import subprocess
 import urllib.parse
@@ -121,6 +121,15 @@ def move_or_rename(src_rel: str, dest_rel: str) -> str:
     return str(dest)
 
 
+def create_project(name: str) -> dict:
+    """Create a project folder inside the projects root and activate it."""
+    if not name:
+        raise ValueError("Missing project name")
+    if not _confirm(f"Create project '{name}'?"):
+        return "declined"
+    return select_project(name)
+
+
 def get_tools_schema() -> list:
     """Return a list of JSON-schema-like declarations for Gemini function-calling.
 
@@ -189,6 +198,20 @@ def get_tools_schema() -> list:
                 "required": ["src", "dest"],
             },
         },
+        {
+            "name": "list_projects",
+            "description": "List existing project folders inside the projects root. Use this before creating a new project to check if one already exists.",
+            "parameters": {"type": "OBJECT", "properties": {}, "required": []},
+        },
+        {
+            "name": "create_project",
+            "description": "Create a new project folder inside the projects root and activate it as the current workspace. Use this when the user asks to build something and no matching project folder exists yet.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {"name": {"type": "STRING", "description": "Plain project folder name, e.g. 'coffee-shop'. No slashes or path separators."}},
+                "required": ["name"],
+            },
+        },
     ]
 
     # Optionally include a web search tool and a shell execution tool
@@ -227,6 +250,12 @@ def get_tools_schema() -> list:
     # Gemini expects tools to be an array containing an object with
     # `functionDeclarations` as shown in the spec.
     return [{"functionDeclarations": fns}]
+
+
+def list_projects() -> list:
+    """List project folder names inside the projects root."""
+    from workspace import list_projects as _list_projects
+    return _list_projects()
 
 
 def duckduckgo_search(query: str, max_results: int = 5):
