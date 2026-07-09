@@ -1,7 +1,7 @@
 """
-repl.py -- PocketCode Gemini CLI (Claude Code-style interface)
-===============================================================
-Thick double-line borders, warm orange/amber palette, spacious layout.
+repl.py -- PocketCode Gemini CLI (minimal interface)
+===================================================
+Compact, low-visual-noise terminal UI with simple borders and concise status blocks.
 """
 
 import json
@@ -169,54 +169,22 @@ def _ok_msg(text: str) -> None:
 # Banner
 # ------------------------------------------------------------------
 
-BANNER_ART = r"""
-     ____            _        _    ____          _
-    |  _ \ ___   ___| | _____| |_ / ___|___   __| | ___
-    | |_) / _ \ / __| |/ / _ \ __| |   / _ \ / _` |/ _ \
-    |  __/ (_) | (__|   <  __/ |_| |__| (_) | (_| |  __/
-    |_|   \___/ \___|_|\_\___|\__|\____\___/ \__,_|\___|
-"""
-
-
 def _print_banner(cfg: dict) -> None:
     w = _w()
     model   = cfg.get("model", "?")
     key_ok  = bool(cfg.get("api_key", "").strip())
     session = _get_current_session_id() or "none"
 
+    title = c(COL_HEADER, "PocketCode")
     print()
     print(_box_top(w))
-
-    # Banner art lines (remove common leading indentation so art aligns)
-    for line in textwrap.dedent(BANNER_ART).strip().splitlines():
-        txt = line.rstrip()
-        # Fill only the literal 'PocketCode' title line with orange background
-        if "PocketCode" in txt:
-            print(_box_line(txt, w, bg_fill=ORANGE_BG, fg_for_text=WHITE))
-        else:
-            print(_box_line(c(COL_HEADER, txt), w))
-
-    print(_box_line("", w))
-    print(_box_line(f"Gemini CLI for Termux {DOT} v1.0", w, bg_fill=ORANGE_BG, fg_for_text=WHITE))
+    print(_box_line(f"{title}  {c(COL_DIM, 'Gemini CLI for Termux')}", w))
     print(_box_sep(w))
-
-    # Status rows
-    key_status = c(COL_OK, "SET") if key_ok else c(COL_ERROR, "NOT SET")
-    print(_box_line(
-        f"{c(COL_SYS, 'Model')}   {c(COL_MODEL, model)}",
-        w
-    ))
-    print(_box_line(
-        f"{c(COL_SYS, 'Session')} {c(COL_INFO, session[:30])}",
-        w
-    ))
-    print(_box_line(
-        f"{c(COL_SYS, 'API Key')} {key_status}",
-        w
-    ))
-
+    print(_box_line(f"{c(COL_SYS, 'Model')}  {c(COL_MODEL, model)}", w))
+    print(_box_line(f"{c(COL_SYS, 'Session')}  {c(COL_INFO, session[:30])}", w))
+    print(_box_line(f"{c(COL_SYS, 'API Key')}  {'SET' if key_ok else 'NOT SET'}", w))
     print(_box_sep(w))
-    print(_box_line(f"Type a message to chat {DOT} /help for commands", w, bg_fill=ORANGE_BG, fg_for_text=WHITE))
+    print(_box_line(f"{c(COL_DIM, 'Type a message to chat')}  {c(COL_CMD, '/help')}", w))
     print(_box_bottom(w))
     print()
 
