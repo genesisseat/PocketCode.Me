@@ -33,6 +33,7 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 DEFAULTS: dict = {
     "api_key": "",
     "model":   "gemini-2.5-flash",
+    "theme":   "claude-dark",
     "workspace_path": str(CONFIG_DIR / "workspace"),
     "projects_root": str(CONFIG_DIR / "projects"),
 }

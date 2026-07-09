@@ -8,8 +8,11 @@ A lightweight command-line AI assistant built for **Termux** on Android. PocketC
 
 - 🔑 **Single API key** — one Google AI Studio key stored locally, updateable anytime
 - 🧠 **Model picker** — switch between available Gemini/Gemma text models on the fly
+- 🎨 **Theme picker** — switch between five built-in terminal themes for text and interface colors
 - 💬 **Persistent conversation memory** — chat history is saved to disk and reloaded automatically, even after closing the app
 - 🧵 **Session management** — start a new conversation anytime without losing the old one
+- 📁 **Project folders** — manage a shared projects root, switch between projects, and keep each project as its own workspace
+- 🛠️ **Tool use** — optional file tools, DuckDuckGo web search, and shell execution can be enabled per session via slash commands
 - 📱 **Phone-first design** — minimal typing, slash-commands instead of long CLI flags
 - 🚫 **No usage tracking** — no local quota counters; Google's own rate limits apply and are simply surfaced as friendly errors if hit
 
@@ -19,7 +22,7 @@ A lightweight command-line AI assistant built for **Termux** on Android. PocketC
 
 - [Termux](https://termux.dev/) installed on Android
 - Python 3.10+
-- `pip install requests`
+- `pip install -r requirements.txt`
 
 ---
 
@@ -28,7 +31,7 @@ A lightweight command-line AI assistant built for **Termux** on Android. PocketC
 ```bash
 pkg update && pkg upgrade
 pkg install python
-pip install requests
+pip install -r requirements.txt
 
 git clone <your-repo-url> pocketcode
 cd pocketcode
@@ -64,9 +67,10 @@ AI: Hi there! How can I help you today?
 | Command             | Description                                      |
 |----------------------|--------------------------------------------------|
 | `/help`              | Show all available commands                       |
-| `/config`            | View current model, tool toggle states, and paths |
-| `/toggle-search`     | Toggle the web search tool for the assistant (shown ON/OFF in `/help` and `/config`) |
-| `/toggle-shell`      | Toggle the shell execution tool for the assistant (shown ON/OFF in `/help` and `/config`) |
+| `/config`            | View your current model, theme, tool states, and paths |
+| `/toggle-search`     | Toggle the web-search tool for the assistant (shown ON/OFF in `/help` and `/config`) |
+| `/toggle-shell`      | Toggle the shell-execution tool for the assistant (shown ON/OFF in `/help` and `/config`) |
+| `/theme`             | Show available themes or switch to one of the built-in presets |
 | `/key <api_key>`     | Set/update your Google AI Studio API key (inline or prompted) |
 | `/model`             | Pick from live-fetched or hardcoded Gemini/Gemma models |
 | `/workspace [path]`  | Set or show the active project folder            |
@@ -78,7 +82,7 @@ AI: Hi there! How can I help you today?
 | `/clear`             | Wipe the current session                          |
 | `/exit`              | Save and quit                                     |
 
-> `/workspace` (project folder + file tool use) is planned — see [Roadmap](#roadmap--ideas).
+> Built-in themes include `claude-dark`, `claude-light`, `dracula`, `solarized-dark`, and `tokyo-night`.
 
 ---
 
@@ -88,7 +92,7 @@ PocketCode stores config and history locally on-device — nothing is sent anywh
 
 ```
 ~/.pocketcode/
-├── config.json        # api_key, model (and workspace_path once tool-use lands)
+├── config.json        # api_key, model, theme, workspace_path, projects_root, and tool toggles
 └── sessions/
     ├── 2026-07-01_142300.jsonl
     └── 2026-07-06_091500.jsonl
@@ -99,6 +103,7 @@ PocketCode stores config and history locally on-device — nothing is sent anywh
 {
   "api_key": "AIza...",
   "model": "gemini-3.1-flash-lite",
+  "theme": "claude-dark",
   "workspace_path": "/home/user/pocketcode-projects/coffee-shop",
   "projects_root": "/home/user/pocketcode-projects"
 }
@@ -189,20 +194,16 @@ If the AI needs to work on a new project that doesn't exist yet, it can call the
 pocketcode/
 ├── pocketcode.py       # entry point
 ├── repl.py             # chat loop + slash command dispatch
-├── config.py           # load/save api_key, model, workspace_path
+├── config.py           # config load/save for API key, model, workspace, projects root, and tool toggles
 ├── history.py          # session persistence, role validation (user/model only)
-├── api.py              # Gemini generateContent calls, error mapping
-├── colors.py            # ANSI colors, auto-detects Termux/Windows
-├── pocketcode.sh        # shell wrapper (Termux/Linux/WSL/Git Bash)
+├── api.py              # Gemini generateContent calls, error mapping, tool allow-listing
+├── colors.py           # ANSI colors, auto-detects Termux/Windows
+├── workspace.py        # workspace/project selection and path sandboxing
+├── tools.py            # file tools, project tools, optional search/shell tools
+├── pocketcode.sh       # shell wrapper (Termux/Linux/WSL/Git Bash)
 ├── tests/
-│   └── test_pocketcode.py   # 36 tests: config, history, API, REPL
-└── sessions/             # saved .jsonl conversation logs
-```
-
-Planned additions for the workspace/tool-use feature:
-```
-├── workspace.py        # path sandboxing — confines all file ops to the active project folder
-├── tools.py            # list_dir, read_file, write_file, create_folder, delete_file, move_or_rename
+│   └── test_workspace_tools.py   # workspace/project selection and tool behavior tests
+└── sessions/          # saved .jsonl conversation logs
 ```
 
 ---
@@ -214,21 +215,22 @@ cd pocketcode
 python -m pytest tests/
 ```
 
-Currently 36/36 tests passing, covering config load/save, history role validation, Gemini request/response formatting, error-code mapping, and REPL command dispatch.
+Currently 38 tests pass, covering config load/save, history role validation, Gemini request/response formatting, error-code mapping, workspace/project switching, theme switching, and REPL command dispatch.
 
 ---
 
 ## Roadmap / Ideas
 
-### In progress — Workspace & Tool Use
-Lets the AI create, read, edit, and organize files inside a project folder you set, so PocketCode can act as a coding assistant rather than just a chat window.
+### Implemented — Workspace & Tool Use
+PocketCode can now create, read, edit, and organize files inside a project folder you set, so it can act as a coding assistant rather than just a chat window.
 
-- [ ] `/workspace <path>` — set the active project folder
-- [ ] File tools exposed to Gemini via function calling: `list_dir`, `read_file`, `write_file`, `append_file`, `create_folder`, `delete_file`, `move_or_rename`
-- [ ] Path sandboxing — every tool call is confined to the workspace root; attempts to escape it (`../`, absolute paths, symlinks) are rejected before touching disk
-- [ ] Confirmation prompt before **every** write/delete/move — shows a preview, requires `y/n`. Read-only operations (`list_dir`, `read_file`) run automatically
-- [ ] Max tool-call cap per turn (e.g. 10) to prevent runaway loops
-- [ ] `/config` also shows the active workspace path
+- [x] `/workspace <path>` — set the active project folder
+- [x] File tools exposed to Gemini via function calling: `list_dir`, `read_file`, `write_file`, `append_file`, `create_folder`, `delete_file`, `move_or_rename`
+- [x] Path sandboxing — every tool call is confined to the workspace root; attempts to escape it (`../`, absolute paths, symlinks) are rejected before touching disk
+- [x] Confirmation prompt before **every** write/delete/move — shows a preview, requires `y/n`. Read-only operations (`list_dir`, `read_file`) run automatically
+- [x] `/config` shows the active workspace path and tool toggle state
+- [x] `/projects-root` and `/projects` manage a shared projects directory and project selection
+- [x] Optional DuckDuckGo search and shell tools can be enabled with `/toggle-search` and `/toggle-shell`
 
 ### Other ideas
 - [ ] Token-based (not just message-count-based) history trimming

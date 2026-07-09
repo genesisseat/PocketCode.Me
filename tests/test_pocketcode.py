@@ -50,10 +50,10 @@ class TestConfig(unittest.TestCase):
         self.assertTrue(mod.CONFIG_FILE.exists())
 
     def test_only_two_default_fields(self):
-        """Config should have api_key, model, and workspace_path."""
+        """Config should include the new theme setting alongside the existing defaults."""
         mod = self._cfg()
         cfg = mod.load_config()
-        self.assertEqual(set(cfg.keys()), {"api_key", "model", "workspace_path", "projects_root"})
+        self.assertEqual(set(cfg.keys()), {"api_key", "model", "theme", "workspace_path", "projects_root"})
 
     def test_save_and_reload(self):
         mod = self._cfg()
@@ -62,6 +62,11 @@ class TestConfig(unittest.TestCase):
         mod.save_config(original)
         reloaded = mod.load_config()
         self.assertEqual(reloaded["model"], "gemini-2.0-flash")
+
+    def test_theme_defaults_to_claude_dark(self):
+        mod = self._cfg()
+        cfg = mod.load_config()
+        self.assertEqual(cfg["theme"], "claude-dark")
 
     def test_backfill_missing_keys(self):
         mod = self._cfg()
@@ -522,6 +527,13 @@ class TestColors(unittest.TestCase):
         import colors
         styled = "\033[1m\033[92mhello\033[0m"
         self.assertEqual(colors.strip_ansi(styled), "hello")
+
+    def test_set_theme_updates_active_palette(self):
+        import colors
+        theme = colors.set_theme("dracula")
+        self.assertEqual(theme, "dracula")
+        self.assertEqual(colors.get_current_theme(), "dracula")
+        self.assertIn("dracula", colors.get_theme_names())
 
 
 if __name__ == "__main__":
