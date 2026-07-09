@@ -7,12 +7,14 @@ traversal, absolute paths, or symlink escapes.
 
 Public API:
   set_workspace(path: str | None) -> dict
+  set_projects_root(path: str | None) -> dict
+  list_projects() -> list[str]
+  set_project(name: str | None) -> dict
   resolve_path(rel: str) -> pathlib.Path
 """
 
 from pathlib import Path
 import os
-import json
 from typing import Optional
 
 from config import load_config, save_config
@@ -54,6 +56,103 @@ def set_workspace(path: Optional[str]) -> dict:
     cfg["workspace_path"] = str(root)
     save_config(cfg)
     print(f"[workspace] Workspace set -> {root}")
+    return cfg
+
+
+def set_projects_root(path: Optional[str]) -> dict:
+    """Set the folder that holds all project folders and create it if needed."""
+    cfg = load_config()
+
+    if not path:
+        try:
+            path = input(f"Projects root [{cfg.get('projects_root') or ''}]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[workspace] Cancelled.")
+            return cfg
+
+    if not path:
+        print("[workspace] No change made.")
+        return cfg
+
+    root = Path(path).expanduser()
+    root.mkdir(parents=True, exist_ok=True)
+    root = root.resolve()
+    cfg["projects_root"] = str(root)
+    save_config(cfg)
+    print(f"[workspace] Projects root set -> {root}")
+    return cfg
+
+
+def get_projects_root() -> Path:
+    """Return the resolved projects root, creating it if necessary."""
+    cfg = load_config()
+    root = Path(cfg.get("projects_root") or "").expanduser()
+    if not root:
+        root = Path(cfg.get("workspace_path") or "").expanduser().parent / "projects"
+    root.mkdir(parents=True, exist_ok=True)
+    return root.resolve()
+
+
+def list_projects() -> list[str]:
+    """List the names of project folders inside the projects root."""
+    root = get_projects_root()
+    return sorted([p.name for p in root.iterdir() if p.is_dir()])
+
+
+def select_project(name: str) -> dict:
+    """Activate a project folder inside the projects root, creating it if missing."""
+    cfg = load_config()
+    root = cfg.get("projects_root", "")
+    if not root:
+        raise ValueError("No projects_root set. Run /projects_root <path> first.")
+
+    if "/" in name or "\\" in name or ".." in name:
+        raise ValueError("Invalid project name.")
+
+    project_path = Path(root).expanduser() / name
+    created = False
+    if not project_path.exists():
+        project_path.mkdir(parents=True, exist_ok=True)
+        created = True
+
+    cfg["workspace_path"] = str(project_path.resolve())
+    save_config(cfg)
+    return {"status": "created" if created else "activated", "path": str(project_path.resolve())}
+
+
+def set_project(project_name: Optional[str]) -> dict:
+    """Create/select a project folder inside the projects root and activate it."""
+    cfg = load_config()
+
+    if not project_name:
+        try:
+            project_name = input("Project name: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[workspace] Cancelled.")
+            return cfg
+
+    if not project_name:
+        print("[workspace] No change made.")
+        return cfg
+
+    projects_root = get_projects_root()
+    candidate = Path(project_name).expanduser()
+    if candidate.is_absolute():
+        raise ValueError("Project names must be relative to the projects root.")
+
+    target = (projects_root / candidate).resolve()
+    try:
+        common = os.path.commonpath([str(projects_root), str(target)])
+    except Exception as exc:
+        raise ValueError("Invalid project path") from exc
+
+    if common != str(projects_root):
+        raise ValueError("Project path escapes the projects root.")
+
+    target.mkdir(parents=True, exist_ok=True)
+    cfg["workspace_path"] = str(target)
+    save_config(cfg)
+    print(f"[workspace] Project selected -> {target}")
     return cfg
 
 
