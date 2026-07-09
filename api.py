@@ -255,7 +255,8 @@ def send_message(
                         "text": (
                             "When the user asks to build, create, or set up files or a project, "
                             "use the available file tools (create_folder, write_file, append_file, delete_file, move_or_rename) "
-                            "to perform the actions in the workspace. Do not only print code as text unless the user explicitly asks to see or explain the code without creating files."
+                            "to perform the actions in the workspace. If the user references a project that doesn't exist yet in the projects folder, "
+                            "create it automatically using create_project before writing files. Do not only print code as text unless the user explicitly asks to see or explain the code without creating files."
                         )
                     }
                 ]
@@ -377,7 +378,7 @@ def send_message(
 
                 func_resp = {"name": fname, "response": resp_obj}
 
-            model_turn = {"role": "model", "content": first_part}
+            model_turn = {"role": "model", "content": {"functionCall": fc}}
             function_turn = {"role": "function", "content": func_resp}
 
             # Append both the model call turn and the function response turn to the conversation

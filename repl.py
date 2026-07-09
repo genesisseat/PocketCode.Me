@@ -233,16 +233,20 @@ def cmd_help(cfg: dict | None = None) -> None:
     shell_state = c(COL_INFO, "ON") if cfg.get("enable_shell") else c(COL_DIM, "OFF")
 
     cmds = [
-        (f"/help",           "Show this help"),
-        (f"/config",         "View current model and masked API key"),
-        (f"/toggle-search",  None),
-        (f"/toggle-shell",   None),
-        (f"/key <api_key>",  "Set or update your Google AI Studio key"),
-        (f"/model",          "List available models and switch"),
-        (f"/new",            "Start a new conversation session"),
-        (f"/history",        "Show messages in the current session"),
-        (f"/clear",          "Clear the current conversation"),
-        (f"/exit",           "Quit PocketCode"),
+        (f"/help",               "Show this help"),
+        (f"/config",             "View current model and masked API key"),
+        (f"/toggle-search",      None),
+        (f"/toggle-shell",       None),
+        (f"/key <api_key>",      "Set or update your Google AI Studio key"),
+        (f"/model",              "List available models and switch"),
+        (f"/workspace [path]",   "Set or show the active project folder"),
+        (f"/projects-root [path]", "Set or show the root folder for projects"),
+        (f"/projects",           "List existing projects and switch to one"),
+        (f"/projects <name>",    "Create/select a project inside the projects root"),
+        (f"/new",                "Start a new conversation session"),
+        (f"/history",            "Show messages in the current session"),
+        (f"/clear",              "Clear the current conversation"),
+        (f"/exit",               "Quit PocketCode"),
     ]
 
     lines = []
@@ -277,6 +281,8 @@ def cmd_config(cfg: dict) -> None:
         f"  {c(COL_SYS, 'Model')}    {c(COL_MODEL, model)}",
         f"  {c(COL_SYS, 'Search')}   {c(COL_INFO, 'ON') if cfg.get('enable_search') else c(COL_DIM, 'OFF')}",
         f"  {c(COL_SYS, 'Shell')}    {c(COL_INFO, 'ON') if cfg.get('enable_shell') else c(COL_DIM, 'OFF')}",
+        f"  {c(COL_SYS, 'Projects')} {c(COL_INFO, cfg.get('projects_root', '(not set)'))}",
+        f"  {c(COL_SYS, 'Workspace')} {c(COL_INFO, cfg.get('workspace_path', '(not set)'))}",
     ]
     _print_box("Configuration", lines)
 
@@ -544,6 +550,48 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         else:
             ws = cfg.get("workspace_path") or "(not set)"
             _sys_msg(f"Workspace: {ws}")
+    elif cmd in ("projects-root", "projects_root"):
+        if args:
+            cfg = workspace.set_projects_root(args)
+        else:
+            root = cfg.get("projects_root") or "(not set)"
+            _sys_msg(f"Projects root: {root}")
+    elif cmd in ("projects", "project", "switch-project"):
+        if args:
+            cfg = workspace.set_project(args)
+            _ok_msg(f"Active workspace: {cfg.get('workspace_path')}")
+        else:
+            projects = workspace.list_projects()
+            if not projects:
+                _sys_msg("No projects yet. Use /projects <name> to create one.")
+                return session_id, cfg
+
+            _sys_msg("Projects:")
+            for i, name in enumerate(projects, start=1):
+                _sys_msg(f"  [{i}] {name}")
+
+            try:
+                raw = input(f"  {c(COL_SYS, 'Select project [1-{len(projects)}] or enter a name:')} ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                _sys_msg("Cancelled.")
+                return session_id, cfg
+
+            if not raw:
+                _sys_msg("Cancelled.")
+                return session_id, cfg
+
+            if raw.isdigit():
+                choice = int(raw)
+                if 1 <= choice <= len(projects):
+                    cfg = workspace.set_project(projects[choice - 1])
+                    _ok_msg(f"Active workspace: {cfg.get('workspace_path')}")
+                    return session_id, cfg
+                _err_msg(f"Enter 1-{len(projects)}.")
+                return session_id, cfg
+
+            cfg = workspace.set_project(raw)
+            _ok_msg(f"Active workspace: {cfg.get('workspace_path')}")
     elif cmd == "new":
         session_id = cmd_new()
     elif cmd == "history":
