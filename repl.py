@@ -221,6 +221,7 @@ def cmd_help(cfg: dict | None = None) -> None:
         (f"/new",                "Start a new conversation session"),
         (f"/history",            "Show messages in the current session"),
         (f"/clear",              "Clear the current conversation"),
+        (f"/memory",             "View or manage remembered details and preferences"),
         (f"/exit",               "Quit PocketCode"),
     ]
 
@@ -488,7 +489,10 @@ def chat_turn(user_input: str, session_id: str, cfg: dict) -> None:
 
     memory_context = build_memory_context()
     if memory_context:
-        memory_note = {"role": "system", "content": f"User memory:\n{memory_context}"}
+        memory_note = {
+            "role": "user",
+            "content": f"[User memory context]\n{memory_context}\nUse these details when answering.",
+        }
         messages = [memory_note] + messages
 
     w = _w()
