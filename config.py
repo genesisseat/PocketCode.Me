@@ -35,6 +35,8 @@ DEFAULTS: dict = {
     "model":   "gemini-2.5-flash",
     "workspace_path": str(CONFIG_DIR / "workspace"),
     "projects_root": str(CONFIG_DIR / "projects"),
+    "api_keys": [],
+    "active_api_key_name": "",
 }
 
 
@@ -111,18 +113,11 @@ def save_config(cfg: dict) -> None:
     print(f"[config] Saved -> {CONFIG_FILE}")
 
 
-def set_key(key: str = "") -> dict:
+def set_key(key: str = "", name: str = "") -> dict:
     """
     Set (or interactively prompt for) the Google AI Studio API key.
-
-    Parameters
-    ----------
-    key : str
-        The API key.  If empty the user is prompted via stdin.
-
-    Returns
-    -------
-    dict   The updated configuration.
+    If a name is supplied, the key is stored in the api_keys drawer and
+    becomes the active key.
     """
     cfg = load_config()
 
@@ -137,10 +132,58 @@ def set_key(key: str = "") -> dict:
         print("[config] API key was not changed (empty input).")
         return cfg
 
+    if not name:
+        name = "default"
+
+    api_keys = cfg.get("api_keys") or []
+    if not isinstance(api_keys, list):
+        api_keys = []
+
+    existing = None
+    for item in api_keys:
+        if isinstance(item, dict) and item.get("name") == name:
+            existing = item
+            break
+
+    if existing is None:
+        api_keys.append({"name": name, "key": key})
+    else:
+        existing["key"] = key
+
+    cfg["api_keys"] = api_keys
     cfg["api_key"] = key
+    cfg["active_api_key_name"] = name
     save_config(cfg)
-    print("[config] API key updated.")
+    print(f"[config] API key updated for '{name}'.")
     return cfg
+
+
+def switch_key(name: str) -> dict:
+    """Switch the active API key to one stored in the api_keys drawer."""
+    cfg = load_config()
+    api_keys = cfg.get("api_keys") or []
+    if not isinstance(api_keys, list):
+        api_keys = []
+
+    for item in api_keys:
+        if isinstance(item, dict) and item.get("name") == name:
+            cfg["api_key"] = item.get("key", "")
+            cfg["active_api_key_name"] = name
+            save_config(cfg)
+            print(f"[config] Switched to API key '{name}'.")
+            return cfg
+
+    print(f"[config] No saved API key named '{name}'.")
+    return cfg
+
+
+def list_keys() -> list[dict]:
+    """Return the stored API key drawer entries."""
+    cfg = load_config()
+    api_keys = cfg.get("api_keys") or []
+    if not isinstance(api_keys, list):
+        return []
+    return api_keys
 
 
 def set_model(model: str = "") -> dict:
