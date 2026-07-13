@@ -8,6 +8,7 @@ import json
 import shutil
 import textwrap
 import urllib.request
+from pathlib import Path
 
 from api import APIError, GEMINI_BASE_URL, send_message
 from colors import (
@@ -221,6 +222,8 @@ def cmd_help(cfg: dict | None = None) -> None:
         (f"/new",                "Start a new conversation session"),
         (f"/history",            "Show messages in the current session"),
         (f"/clear",              "Clear the current conversation"),
+        (f"/status",             "Show session, model, and workspace summary"),
+        (f"/save <file>",        "Export the current conversation to a text file"),
         (f"/memory",             "View or manage remembered details and preferences"),
         (f"/exit",               "Quit PocketCode"),
     ]
@@ -438,6 +441,35 @@ def cmd_clear(session_id: str) -> None:
     _ok_msg("Conversation cleared.")
 
 
+def cmd_status(session_id: str, cfg: dict) -> None:
+    messages = load_history(session_id)
+    model = cfg.get("model", "?")
+    lines = [
+        f"  {c(COL_SYS, 'Session')}  {c(COL_INFO, session_id[:20])}",
+        f"  {c(COL_SYS, 'Messages')} {c(COL_INFO, str(len(messages)))}",
+        f"  {c(COL_SYS, 'Model')}    {c(COL_MODEL, model)}",
+        f"  {c(COL_SYS, 'Workspace')} {c(COL_INFO, cfg.get('workspace_path', '(not set)'))}",
+    ]
+    _print_box("Status", lines)
+
+
+def cmd_save(session_id: str, path_str: str = "") -> None:
+    if not path_str:
+        _err_msg("Usage: /save <file-path>")
+        return
+
+    messages = load_history(session_id)
+    export_path = Path(path_str).expanduser()
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for msg in messages:
+        role = msg.get("role", "unknown")
+        content = msg.get("content", "")
+        lines.append(f"[{role}] {content}")
+    export_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    _ok_msg(f"Conversation exported to {export_path}")
+
+
 def cmd_memory(args: str) -> None:
     if not args.strip():
         data = load_memory()
@@ -623,6 +655,10 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cmd_history(session_id)
     elif cmd == "clear":
         cmd_clear(session_id)
+    elif cmd == "status":
+        cmd_status(session_id, cfg)
+    elif cmd == "save":
+        cmd_save(session_id, args)
     elif cmd == "memory":
         cmd_memory(args)
     else:
