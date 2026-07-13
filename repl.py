@@ -57,6 +57,13 @@ from memory import (
     remember_detail,
     remember_preference,
 )
+from github import (
+    authenticate_github,
+    github_status,
+    is_authenticated,
+    list_repositories,
+    logout_github,
+)
 
 try:
     import readline  # noqa: F401
@@ -228,6 +235,10 @@ def cmd_help(cfg: dict | None = None) -> None:
         (f"/status",             "Show session, model, and workspace summary"),
         (f"/save <file>",        "Export the current conversation to a text file"),
         (f"/memory",             "View or manage remembered details and preferences"),
+        (f"/github-auth <token>", "Authenticate PocketCode with GitHub (personal access token)"),
+        (f"/github-status",      "Show whether GitHub authentication is active"),
+        (f"/github-repos",       "List your recent GitHub repositories"),
+        (f"/github-logout",      "Remove stored GitHub authentication"),
         (f"/exit",               "Quit PocketCode"),
     ]
 
@@ -535,6 +546,40 @@ def cmd_save(session_id: str, path_str: str = "") -> None:
     _ok_msg(f"Conversation exported to {export_path}")
 
 
+def cmd_github_auth(args: str) -> None:
+    token = args.strip()
+    if not token:
+        _err_msg("Usage: /github-auth <token>")
+        return
+    authenticate_github(token)
+    _ok_msg("GitHub authentication stored.")
+
+
+def cmd_github_status() -> None:
+    _sys_msg(github_status())
+
+
+def cmd_github_repos() -> None:
+    if not is_authenticated():
+        _err_msg("GitHub is not authenticated. Run /github-auth <token> first.")
+        return
+    try:
+        repos = list_repositories()
+    except Exception as exc:
+        _err_msg(str(exc))
+        return
+    if not repos:
+        _sys_msg("No repositories found.")
+        return
+    lines = [f"  {c(COL_SYS, repo)}" for repo in repos]
+    _print_box("GitHub Repositories", lines)
+
+
+def cmd_github_logout() -> None:
+    logout_github()
+    _ok_msg("GitHub authentication removed.")
+
+
 def cmd_memory(args: str) -> None:
     if not args.strip():
         data = load_memory()
@@ -730,6 +775,14 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cmd_save(session_id, args)
     elif cmd == "memory":
         cmd_memory(args)
+    elif cmd == "github-auth":
+        cmd_github_auth(args)
+    elif cmd == "github-status":
+        cmd_github_status()
+    elif cmd == "github-repos":
+        cmd_github_repos()
+    elif cmd == "github-logout":
+        cmd_github_logout()
     else:
         _err_msg(f"Unknown command: /{cmd}")
         _sys_msg("Type /help for commands.")
