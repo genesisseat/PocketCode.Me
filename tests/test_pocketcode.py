@@ -156,6 +156,14 @@ class TestHistory(unittest.TestCase):
         with self.assertRaises(ValueError):
             mod.append_message("system", "bad", sid)
 
+    def test_duo_roles_are_allowed(self):
+        mod = self._hist()
+        sid = mod.new_session()
+        mod.append_message("agent_a", "draft", sid)
+        mod.append_message("agent_b", "final", sid)
+        msgs = mod.load_history(sid)
+        self.assertEqual([msg["role"] for msg in msgs], ["agent_a", "agent_b"])
+
     def test_trim_history(self):
         mod = self._hist()
         sid = mod.new_session()
@@ -239,6 +247,17 @@ class TestGeminiAPI(unittest.TestCase):
         ]
         contents = _to_gemini_contents(msgs)
         self.assertEqual(len(contents), 1)  # only "user" kept
+
+    def test_to_gemini_contents_skips_duo_roles(self):
+        from api import _to_gemini_contents
+        msgs = [
+            {"role": "user", "content": "hello"},
+            {"role": "agent_a", "content": "draft"},
+            {"role": "agent_b", "content": "final"},
+        ]
+        contents = _to_gemini_contents(msgs)
+        self.assertEqual(len(contents), 1)
+        self.assertEqual(contents[0]["role"], "user")
 
     # -- Response parsing --
 
