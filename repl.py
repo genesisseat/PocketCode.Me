@@ -49,6 +49,13 @@ from history import (
     load_history,
     new_session,
 )
+from memory import (
+    build_memory_context,
+    forget_memory_entry,
+    load_memory,
+    remember_detail,
+    remember_preference,
+)
 
 try:
     import readline  # noqa: F401
@@ -430,6 +437,47 @@ def cmd_clear(session_id: str) -> None:
     _ok_msg("Conversation cleared.")
 
 
+def cmd_memory(args: str) -> None:
+    if not args.strip():
+        data = load_memory()
+        lines = []
+        if data.get("details"):
+            lines.append(f"  {c(COL_SYS, 'Details')}")
+            for item in data["details"]:
+                lines.append(f"    - {item}")
+        if data.get("preferences"):
+            lines.append(f"  {c(COL_SYS, 'Preferences')}")
+            for key, value in sorted(data["preferences"].items()):
+                lines.append(f"    - {key}: {value}")
+        if not lines:
+            _sys_msg("No remembered details or preferences yet.")
+            return
+        _print_box("Memory", lines)
+        return
+
+    parts = args.split(maxsplit=1)
+    if len(parts) == 2 and parts[0].lower() in {"remember", "rem", "add"}:
+        remember_detail(parts[1])
+        _ok_msg(f"Remembered detail: {parts[1]}")
+        return
+
+    if len(parts) == 2 and parts[0].lower() in {"preference", "pref"}:
+        key, value = parts[1].split("=", 1)
+        remember_preference(key.strip(), value.strip())
+        _ok_msg(f"Stored preference: {key.strip()}={value.strip()}")
+        return
+
+    if len(parts) == 2 and parts[0].lower() in {"forget", "remove", "del"}:
+        removed = forget_memory_entry(parts[1].strip())
+        if removed:
+            _ok_msg(f"Removed memory entry: {parts[1].strip()}")
+        else:
+            _sys_msg(f"No memory entry found for: {parts[1].strip()}")
+        return
+
+    _err_msg("Usage: /memory, /memory remember <detail>, /memory preference <key>=<value>, or /memory forget <key>")
+
+
 # ------------------------------------------------------------------
 # Chat turn -- thick response block
 # ------------------------------------------------------------------
@@ -437,6 +485,11 @@ def cmd_clear(session_id: str) -> None:
 def chat_turn(user_input: str, session_id: str, cfg: dict) -> None:
     append_message("user", user_input, session_id)
     messages = load_history(session_id)
+
+    memory_context = build_memory_context()
+    if memory_context:
+        memory_note = {"role": "system", "content": f"User memory:\n{memory_context}"}
+        messages = [memory_note] + messages
 
     w = _w()
     print()
@@ -566,6 +619,8 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cmd_history(session_id)
     elif cmd == "clear":
         cmd_clear(session_id)
+    elif cmd == "memory":
+        cmd_memory(args)
     else:
         _err_msg(f"Unknown command: /{cmd}")
         _sys_msg("Type /help for commands.")
