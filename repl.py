@@ -236,9 +236,10 @@ def cmd_help(cfg: dict | None = None) -> None:
         (f"/save <file>",        "Export the current conversation to a text file"),
         (f"/memory",             "View or manage remembered details and preferences"),
         (f"/github-auth <token>", "Authenticate PocketCode with GitHub (personal access token)"),
+        (f"/github-login <token>", "Sign in to GitHub with a personal access token"),
+        (f"/github-logout",      "Sign out from GitHub and remove stored auth"),
         (f"/github-status",      "Show whether GitHub authentication is active"),
         (f"/github-repos",       "List your recent GitHub repositories"),
-        (f"/github-logout",      "Remove stored GitHub authentication"),
         (f"/exit",               "Quit PocketCode"),
     ]
 
@@ -775,7 +776,7 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cmd_save(session_id, args)
     elif cmd == "memory":
         cmd_memory(args)
-    elif cmd == "github-auth":
+    elif cmd in {"github-auth", "github-login"}:
         cmd_github_auth(args)
     elif cmd == "github-status":
         cmd_github_status()
