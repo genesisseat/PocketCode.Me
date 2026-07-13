@@ -90,6 +90,20 @@ def load_config() -> dict:
             cfg[key] = default_val
             changed = True
 
+    if "duo_mode" not in cfg:
+        cfg["duo_mode"] = {
+            "enabled": False,
+            "agent_a": {
+                "model": "gemini-2.5-flash",
+                "persona": "You are a fast drafting assistant. Write a first-pass solution.",
+            },
+            "agent_b": {
+                "model": "gemini-3.1-flash-lite",
+                "persona": "You are a careful reviewer. Improve and correct the previous response.",
+            },
+        }
+        changed = True
+
     if changed:
         save_config(cfg)
 

@@ -64,6 +64,7 @@ from github import (
     list_repositories,
     logout_github,
 )
+from duo import run_duo_turn
 
 try:
     import readline  # noqa: F401
@@ -235,6 +236,9 @@ def cmd_help(cfg: dict | None = None) -> None:
         (f"/status",             "Show session, model, and workspace summary"),
         (f"/save <file>",        "Export the current conversation to a text file"),
         (f"/memory",             "View or manage remembered details and preferences"),
+        (f"/duo on|off",         "Toggle two-agent relay mode"),
+        (f"/duo setup",          "Configure Agent A/B models and personas"),
+        (f"/duo",                "Show current duo relay configuration"),
         (f"/github-auth <token>", "Authenticate PocketCode with GitHub (personal access token)"),
         (f"/github-login <token>", "Sign in to GitHub with a personal access token"),
         (f"/github-logout",      "Sign out from GitHub and remove stored auth"),
@@ -581,6 +585,59 @@ def cmd_github_logout() -> None:
     _ok_msg("GitHub authentication removed.")
 
 
+def cmd_duo_toggle(args: str, cfg: dict) -> dict:
+    value = (args or "").strip().lower()
+    duo_cfg = dict(cfg.get("duo_mode") or {})
+    if value in {"on", "true", "1"}:
+        duo_cfg["enabled"] = True
+    elif value in {"off", "false", "0"}:
+        duo_cfg["enabled"] = False
+    else:
+        duo_cfg["enabled"] = not bool(duo_cfg.get("enabled", False))
+    cfg["duo_mode"] = duo_cfg
+    save_config(cfg)
+    state = "enabled" if duo_cfg.get("enabled") else "disabled"
+    _ok_msg(f"Duo mode {state}.")
+    return cfg
+
+
+def cmd_duo_setup(cfg: dict) -> dict:
+    duo_cfg = dict(cfg.get("duo_mode") or {})
+    duo_cfg.setdefault("agent_a", {})
+    duo_cfg.setdefault("agent_b", {})
+
+    try:
+        agent_a_model = input("  Agent A model [gemini-2.5-flash]: ").strip() or duo_cfg["agent_a"].get("model", "gemini-2.5-flash")
+        agent_a_persona = input("  Agent A persona [fast drafting]: ").strip() or duo_cfg["agent_a"].get("persona", "You are a fast drafting assistant. Write a first-pass solution.")
+        agent_b_model = input("  Agent B model [gemini-3.1-flash-lite]: ").strip() or duo_cfg["agent_b"].get("model", "gemini-3.1-flash-lite")
+        agent_b_persona = input("  Agent B persona [careful review]: ").strip() or duo_cfg["agent_b"].get("persona", "You are a careful reviewer. Improve and correct the previous response.")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        _sys_msg("Cancelled.")
+        return cfg
+
+    duo_cfg["agent_a"] = {"model": agent_a_model, "persona": agent_a_persona}
+    duo_cfg["agent_b"] = {"model": agent_b_model, "persona": agent_b_persona}
+    duo_cfg.setdefault("enabled", False)
+    cfg["duo_mode"] = duo_cfg
+    save_config(cfg)
+    _ok_msg("Duo relay configured.")
+    return cfg
+
+
+def cmd_duo_show(cfg: dict) -> None:
+    duo_cfg = cfg.get("duo_mode") or {}
+    enabled = "ON" if duo_cfg.get("enabled") else "OFF"
+    agent_a = duo_cfg.get("agent_a") or {}
+    agent_b = duo_cfg.get("agent_b") or {}
+    lines = [
+        f"  {c(COL_SYS, 'Enabled')}  {c(COL_INFO, enabled)}",
+        f"  {c(COL_SYS, 'Agent A')}  {c(COL_MODEL, agent_a.get('model', '?'))}",
+        f"  {c(COL_SYS, 'Agent B')}  {c(COL_MODEL, agent_b.get('model', '?'))}",
+    ]
+    _print_box("Duo Relay", lines)
+
+
 def cmd_memory(args: str) -> None:
     if not args.strip():
         data = load_memory()
@@ -642,13 +699,16 @@ def chat_turn(user_input: str, session_id: str, cfg: dict) -> None:
     print()
 
     try:
-        # Enable tool-calling and provide a status callback for UI updates
-        reply = send_message(
-            messages,
-            cfg=cfg,
-            tools_enabled=True,
-            status_cb=lambda s: _sys_msg(s),
-        )
+        if cfg.get("duo_mode", {}).get("enabled"):
+            result = run_duo_turn(user_input, messages, status_cb=lambda s: _sys_msg(s))
+            reply = result["final"]
+        else:
+            reply = send_message(
+                messages,
+                cfg=cfg,
+                tools_enabled=True,
+                status_cb=lambda s: _sys_msg(s),
+            )
     except APIError as exc:
         print(c(COL_DIM, _hline(BOX_SEP)))
         _err_msg(str(exc))
@@ -776,6 +836,16 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cmd_save(session_id, args)
     elif cmd == "memory":
         cmd_memory(args)
+    elif cmd == "duo":
+        if args.strip():
+            if args.strip().lower() in {"on", "off", "true", "false", "1", "0"}:
+                cfg = cmd_duo_toggle(args, cfg)
+            elif args.strip().lower() == "setup":
+                cfg = cmd_duo_setup(cfg)
+            else:
+                _err_msg("Usage: /duo [on|off|setup]")
+        else:
+            cmd_duo_show(cfg)
     elif cmd in {"github-auth", "github-login"}:
         cmd_github_auth(args)
     elif cmd == "github-status":
