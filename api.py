@@ -329,7 +329,7 @@ def send_message(
 
     if tools_enabled:
         calls = 0
-        max_calls = 10
+        max_calls = cfg.get("tool_call_limit", 10)
         # operate on a mutable copy of messages so we can append the model/function turns
         convo = list(messages)
 

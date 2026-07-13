@@ -49,11 +49,14 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg["model"], "gemini-2.5-flash")
         self.assertTrue(mod.CONFIG_FILE.exists())
 
-    def test_only_two_default_fields(self):
-        """Config should have api_key, model, and workspace_path."""
+    def test_default_fields(self):
+        """Config should include the expected default keys."""
         mod = self._cfg()
         cfg = mod.load_config()
-        self.assertEqual(set(cfg.keys()), {"api_key", "model", "workspace_path", "projects_root"})
+        self.assertEqual(
+            set(cfg.keys()),
+            {"api_key", "model", "workspace_path", "projects_root", "shell_timeout", "tool_call_limit", "duo_mode"},
+        )
 
     def test_save_and_reload(self):
         mod = self._cfg()

@@ -36,6 +36,8 @@ DEFAULTS: dict = {
     "model":   "gemini-2.5-flash",
     "workspace_path": str(CONFIG_DIR / "workspace"),
     "projects_root": str(CONFIG_DIR / "projects"),
+    "shell_timeout": 30,
+    "tool_call_limit": 10,
 }
 
 
@@ -102,14 +104,6 @@ def load_config() -> dict:
                 "persona": "You are a careful reviewer. Improve and correct the previous response.",
             },
         }
-        changed = True
-
-    if "shell_timeout" not in cfg:
-        cfg["shell_timeout"] = 30
-        changed = True
-
-    if "tool_call_limit" not in cfg:
-        cfg["tool_call_limit"] = 10
         changed = True
 
     if "shell_timeout" not in cfg:
