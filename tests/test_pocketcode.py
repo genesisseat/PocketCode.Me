@@ -393,7 +393,8 @@ class TestREPL(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        tmp_path = Path(self.tmp.name)
+        self.tmp_dir = Path(self.tmp.name)
+        tmp_path = self.tmp_dir
         import config as cfg_mod
         import history as hist_mod
         self._cfg_orig = (cfg_mod.CONFIG_DIR, cfg_mod.CONFIG_FILE)
@@ -489,6 +490,35 @@ class TestREPL(unittest.TestCase):
         old_msgs = load_history(sid1)
         self.assertEqual(len(old_msgs), 2)
         self.assertEqual(old_msgs[0]["content"], "old message")
+
+    def test_cmd_status_reports_session_context(self):
+        from repl import cmd_status
+        from config import load_config
+        from history import append_message, new_session
+        sid = new_session()
+        append_message("user", "hello", sid)
+        cfg = load_config()
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            cmd_status(sid, cfg)
+        output = buf.getvalue()
+        self.assertIn("Session", output)
+        self.assertIn("Messages", output)
+
+    def test_cmd_save_writes_text_file(self):
+        from repl import cmd_save
+        from history import append_message, new_session
+        sid = new_session()
+        append_message("user", "hello", sid)
+        append_message("model", "hi", sid)
+        out_path = self.tmp_dir / "session_export.txt"
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            cmd_save(sid, str(out_path))
+        self.assertTrue(out_path.exists())
+        content = out_path.read_text(encoding="utf-8")
+        self.assertIn("hello", content)
+        self.assertIn("hi", content)
 
 
 # =====================================================================

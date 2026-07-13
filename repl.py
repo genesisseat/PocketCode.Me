@@ -8,6 +8,7 @@ import json
 import shutil
 import textwrap
 import urllib.request
+from pathlib import Path
 
 from api import APIError, GEMINI_BASE_URL, send_message
 from colors import (
@@ -48,6 +49,13 @@ from history import (
     list_sessions,
     load_history,
     new_session,
+)
+from memory import (
+    build_memory_context,
+    forget_memory_entry,
+    load_memory,
+    remember_detail,
+    remember_preference,
 )
 
 try:
@@ -214,6 +222,9 @@ def cmd_help(cfg: dict | None = None) -> None:
         (f"/new",                "Start a new conversation session"),
         (f"/history",            "Show messages in the current session"),
         (f"/clear",              "Clear the current conversation"),
+        (f"/status",             "Show session, model, and workspace summary"),
+        (f"/save <file>",        "Export the current conversation to a text file"),
+        (f"/memory",             "View or manage remembered details and preferences"),
         (f"/exit",               "Quit PocketCode"),
     ]
 
@@ -430,6 +441,76 @@ def cmd_clear(session_id: str) -> None:
     _ok_msg("Conversation cleared.")
 
 
+def cmd_status(session_id: str, cfg: dict) -> None:
+    messages = load_history(session_id)
+    model = cfg.get("model", "?")
+    lines = [
+        f"  {c(COL_SYS, 'Session')}  {c(COL_INFO, session_id[:20])}",
+        f"  {c(COL_SYS, 'Messages')} {c(COL_INFO, str(len(messages)))}",
+        f"  {c(COL_SYS, 'Model')}    {c(COL_MODEL, model)}",
+        f"  {c(COL_SYS, 'Workspace')} {c(COL_INFO, cfg.get('workspace_path', '(not set)'))}",
+    ]
+    _print_box("Status", lines)
+
+
+def cmd_save(session_id: str, path_str: str = "") -> None:
+    if not path_str:
+        _err_msg("Usage: /save <file-path>")
+        return
+
+    messages = load_history(session_id)
+    export_path = Path(path_str).expanduser()
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for msg in messages:
+        role = msg.get("role", "unknown")
+        content = msg.get("content", "")
+        lines.append(f"[{role}] {content}")
+    export_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    _ok_msg(f"Conversation exported to {export_path}")
+
+
+def cmd_memory(args: str) -> None:
+    if not args.strip():
+        data = load_memory()
+        lines = []
+        if data.get("details"):
+            lines.append(f"  {c(COL_SYS, 'Details')}")
+            for item in data["details"]:
+                lines.append(f"    - {item}")
+        if data.get("preferences"):
+            lines.append(f"  {c(COL_SYS, 'Preferences')}")
+            for key, value in sorted(data["preferences"].items()):
+                lines.append(f"    - {key}: {value}")
+        if not lines:
+            _sys_msg("No remembered details or preferences yet.")
+            return
+        _print_box("Memory", lines)
+        return
+
+    parts = args.split(maxsplit=1)
+    if len(parts) == 2 and parts[0].lower() in {"remember", "rem", "add"}:
+        remember_detail(parts[1])
+        _ok_msg(f"Remembered detail: {parts[1]}")
+        return
+
+    if len(parts) == 2 and parts[0].lower() in {"preference", "pref"}:
+        key, value = parts[1].split("=", 1)
+        remember_preference(key.strip(), value.strip())
+        _ok_msg(f"Stored preference: {key.strip()}={value.strip()}")
+        return
+
+    if len(parts) == 2 and parts[0].lower() in {"forget", "remove", "del"}:
+        removed = forget_memory_entry(parts[1].strip())
+        if removed:
+            _ok_msg(f"Removed memory entry: {parts[1].strip()}")
+        else:
+            _sys_msg(f"No memory entry found for: {parts[1].strip()}")
+        return
+
+    _err_msg("Usage: /memory, /memory remember <detail>, /memory preference <key>=<value>, or /memory forget <key>")
+
+
 # ------------------------------------------------------------------
 # Chat turn -- thick response block
 # ------------------------------------------------------------------
@@ -437,6 +518,14 @@ def cmd_clear(session_id: str) -> None:
 def chat_turn(user_input: str, session_id: str, cfg: dict) -> None:
     append_message("user", user_input, session_id)
     messages = load_history(session_id)
+
+    memory_context = build_memory_context()
+    if memory_context:
+        memory_note = {
+            "role": "user",
+            "content": f"[User memory context]\n{memory_context}\nUse these details when answering.",
+        }
+        messages = [memory_note] + messages
 
     w = _w()
     print()
@@ -566,6 +655,12 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cmd_history(session_id)
     elif cmd == "clear":
         cmd_clear(session_id)
+    elif cmd == "status":
+        cmd_status(session_id, cfg)
+    elif cmd == "save":
+        cmd_save(session_id, args)
+    elif cmd == "memory":
+        cmd_memory(args)
     else:
         _err_msg(f"Unknown command: /{cmd}")
         _sys_msg("Type /help for commands.")
