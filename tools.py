@@ -315,9 +315,10 @@ def run_shell(command: str):
     if ans not in ("y", "yes"):
         return "declined"
 
+    timeout = load_config().get("shell_timeout", 30)
     try:
         # Run command through shell for convenience but capture output
-        proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+        proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
         out = proc.stdout or ""
         err = proc.stderr or ""
         if proc.returncode != 0:

@@ -221,6 +221,8 @@ def cmd_help(cfg: dict | None = None) -> None:
         (f"/config",             "View current model and masked API key"),
         (f"/toggle-search",      None),
         (f"/toggle-shell",       None),
+        (f"/set-shell-timeout <seconds>", "Configure the shell command timeout"),
+        (f"/set-tool-limit <count>", "Configure the tool-call loop limit"),
         (f"/key <api_key>",      "Set or update your active Google AI Studio key"),
         (f"/keys",               "List saved API keys and the active selection"),
         (f"/key <name> <api_key>", "Save a key under a name and make it active"),
@@ -279,6 +281,8 @@ def cmd_config(cfg: dict) -> None:
         f"  {c(COL_SYS, 'Model')}    {c(COL_MODEL, model)}",
         f"  {c(COL_SYS, 'Search')}   {c(COL_INFO, 'ON') if cfg.get('enable_search') else c(COL_DIM, 'OFF')}",
         f"  {c(COL_SYS, 'Shell')}    {c(COL_INFO, 'ON') if cfg.get('enable_shell') else c(COL_DIM, 'OFF')}",
+        f"  {c(COL_SYS, 'Shell timeout')} {c(COL_INFO, str(cfg.get('shell_timeout', 30)) + 's')}",
+        f"  {c(COL_SYS, 'Tool limit')} {c(COL_INFO, str(cfg.get('tool_call_limit', 10)))}",
         f"  {c(COL_SYS, 'Projects')} {c(COL_INFO, cfg.get('projects_root', '(not set)'))}",
         f"  {c(COL_SYS, 'Workspace')} {c(COL_INFO, cfg.get('workspace_path', '(not set)'))}",
     ]
@@ -390,6 +394,42 @@ def cmd_toggle_shell(cfg: dict) -> dict:
     save_config(cfg)
     state = "enabled" if cfg["enable_shell"] else "disabled"
     _ok_msg(f"Shell execution tool {state}.")
+    return cfg
+
+
+def cmd_set_shell_timeout(args: str, cfg: dict) -> dict:
+    value = args.strip()
+    if not value:
+        _err_msg("Usage: /set-shell-timeout <seconds>")
+        return cfg
+    try:
+        timeout = int(value)
+        if timeout < 1:
+            raise ValueError
+    except ValueError:
+        _err_msg("Timeout must be a positive integer.")
+        return cfg
+    cfg["shell_timeout"] = timeout
+    save_config(cfg)
+    _ok_msg(f"Shell timeout set to {timeout}s.")
+    return cfg
+
+
+def cmd_set_tool_limit(args: str, cfg: dict) -> dict:
+    value = args.strip()
+    if not value:
+        _err_msg("Usage: /set-tool-limit <count>")
+        return cfg
+    try:
+        count = int(value)
+        if count < 1:
+            raise ValueError
+    except ValueError:
+        _err_msg("Tool limit must be a positive integer.")
+        return cfg
+    cfg["tool_call_limit"] = count
+    save_config(cfg)
+    _ok_msg(f"Tool call limit set to {count}.")
     return cfg
 
 
@@ -788,6 +828,10 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cfg = cmd_toggle_search(cfg)
     elif cmd == "toggle-shell":
         cfg = cmd_toggle_shell(cfg)
+    elif cmd == "set-shell-timeout":
+        cfg = cmd_set_shell_timeout(args, cfg)
+    elif cmd == "set-tool-limit":
+        cfg = cmd_set_tool_limit(args, cfg)
     elif cmd == "model":
         cfg = cmd_model(cfg)
     elif cmd == "workspace":

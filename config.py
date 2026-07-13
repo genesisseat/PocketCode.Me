@@ -104,6 +104,22 @@ def load_config() -> dict:
         }
         changed = True
 
+    if "shell_timeout" not in cfg:
+        cfg["shell_timeout"] = 30
+        changed = True
+
+    if "tool_call_limit" not in cfg:
+        cfg["tool_call_limit"] = 10
+        changed = True
+
+    if "shell_timeout" not in cfg:
+        cfg["shell_timeout"] = 30
+        changed = True
+
+    if "tool_call_limit" not in cfg:
+        cfg["tool_call_limit"] = 10
+        changed = True
+
     if changed:
         save_config(cfg)
 
