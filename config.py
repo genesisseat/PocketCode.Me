@@ -29,14 +29,13 @@ from pathlib import Path
 
 CONFIG_DIR  = Path.home() / ".pocketcode"
 CONFIG_FILE = CONFIG_DIR / "config.json"
+API_KEYS_FILE = CONFIG_DIR / "api_keys.json"
 
 DEFAULTS: dict = {
     "api_key": "",
     "model":   "gemini-2.5-flash",
     "workspace_path": str(CONFIG_DIR / "workspace"),
     "projects_root": str(CONFIG_DIR / "projects"),
-    "api_keys": [],
-    "active_api_key_name": "",
 }
 
 
@@ -113,12 +112,44 @@ def save_config(cfg: dict) -> None:
     print(f"[config] Saved -> {CONFIG_FILE}")
 
 
+def _load_key_drawer() -> dict:
+    _ensure_dir()
+    if not API_KEYS_FILE.exists():
+        drawer = {"active_name": "default", "keys": []}
+        _save_key_drawer(drawer)
+        return drawer
+
+    try:
+        with API_KEYS_FILE.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        return {"active_name": "default", "keys": []}
+
+    if not isinstance(data, dict):
+        return {"active_name": "default", "keys": []}
+
+    keys = data.get("keys", [])
+    if not isinstance(keys, list):
+        keys = []
+
+    return {
+        "active_name": data.get("active_name") or "default",
+        "keys": keys,
+    }
+
+
+def _save_key_drawer(drawer: dict) -> None:
+    _ensure_dir()
+    try:
+        with API_KEYS_FILE.open("w", encoding="utf-8") as fh:
+            json.dump(drawer, fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+    except OSError as exc:
+        print(f"[config] Error: could not write API key drawer -- {exc}", file=sys.stderr)
+
+
 def set_key(key: str = "", name: str = "") -> dict:
-    """
-    Set (or interactively prompt for) the Google AI Studio API key.
-    If a name is supplied, the key is stored in the api_keys drawer and
-    becomes the active key.
-    """
+    """Store an API key in the drawer and make it the active key."""
     cfg = load_config()
 
     if not key:
@@ -135,40 +166,41 @@ def set_key(key: str = "", name: str = "") -> dict:
     if not name:
         name = "default"
 
-    api_keys = cfg.get("api_keys") or []
-    if not isinstance(api_keys, list):
-        api_keys = []
+    drawer = _load_key_drawer()
+    keys = drawer.get("keys", [])
+    if not isinstance(keys, list):
+        keys = []
 
     existing = None
-    for item in api_keys:
+    for item in keys:
         if isinstance(item, dict) and item.get("name") == name:
             existing = item
             break
 
     if existing is None:
-        api_keys.append({"name": name, "key": key})
+        keys.append({"name": name, "key": key})
     else:
         existing["key"] = key
 
-    cfg["api_keys"] = api_keys
+    drawer["keys"] = keys
+    drawer["active_name"] = name
+    _save_key_drawer(drawer)
     cfg["api_key"] = key
-    cfg["active_api_key_name"] = name
     save_config(cfg)
     print(f"[config] API key updated for '{name}'.")
     return cfg
 
 
 def switch_key(name: str) -> dict:
-    """Switch the active API key to one stored in the api_keys drawer."""
+    """Switch the active API key to one stored in the drawer."""
     cfg = load_config()
-    api_keys = cfg.get("api_keys") or []
-    if not isinstance(api_keys, list):
-        api_keys = []
-
-    for item in api_keys:
+    drawer = _load_key_drawer()
+    keys = drawer.get("keys", [])
+    for item in keys:
         if isinstance(item, dict) and item.get("name") == name:
+            drawer["active_name"] = name
+            _save_key_drawer(drawer)
             cfg["api_key"] = item.get("key", "")
-            cfg["active_api_key_name"] = name
             save_config(cfg)
             print(f"[config] Switched to API key '{name}'.")
             return cfg
@@ -179,11 +211,17 @@ def switch_key(name: str) -> dict:
 
 def list_keys() -> list[dict]:
     """Return the stored API key drawer entries."""
-    cfg = load_config()
-    api_keys = cfg.get("api_keys") or []
-    if not isinstance(api_keys, list):
+    drawer = _load_key_drawer()
+    keys = drawer.get("keys", [])
+    if not isinstance(keys, list):
         return []
-    return api_keys
+    return keys
+
+
+def get_active_key_name() -> str:
+    """Return the name of the currently active key in the drawer."""
+    drawer = _load_key_drawer()
+    return drawer.get("active_name") or "default"
 
 
 def set_model(model: str = "") -> dict:

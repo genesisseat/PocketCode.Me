@@ -39,7 +39,7 @@ from colors import (
     ORANGE_BG,
     WHITE,
 )
-from config import list_keys, load_config, save_config, show_config, switch_key
+from config import get_active_key_name, list_keys, load_config, save_config, show_config, switch_key
 import workspace
 import tools
 from history import (
@@ -341,7 +341,7 @@ def cmd_keys(cfg: dict) -> None:
         _sys_msg("No saved API keys yet.")
         return
     lines = []
-    active = cfg.get("active_api_key_name") or "default"
+    active = get_active_key_name()
     for item in items:
         name = item.get("name", "?")
         marker = c(COL_OK, " [active]") if name == active else ""
