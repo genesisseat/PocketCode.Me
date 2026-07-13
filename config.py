@@ -75,8 +75,20 @@ def load_config() -> dict:
 
     if not CONFIG_FILE.exists():
         print(f"[config] No config found -- creating default at {CONFIG_FILE}")
-        save_config(dict(DEFAULTS))
-        return dict(DEFAULTS)
+        cfg = dict(DEFAULTS)
+        cfg["duo_mode"] = {
+            "enabled": False,
+            "agent_a": {
+                "model": "gemini-2.5-flash",
+                "persona": "You are a fast drafting assistant. Write a first-pass solution.",
+            },
+            "agent_b": {
+                "model": "gemini-3.1-flash-lite",
+                "persona": "You are a careful reviewer. Improve and correct the previous response.",
+            },
+        }
+        save_config(cfg)
+        return cfg
 
     try:
         with CONFIG_FILE.open("r", encoding="utf-8") as fh:
