@@ -39,7 +39,7 @@ from colors import (
     ORANGE_BG,
     WHITE,
 )
-from config import load_config, save_config, show_config
+from config import list_keys, load_config, save_config, show_config, switch_key
 import workspace
 import tools
 from history import (
@@ -213,7 +213,10 @@ def cmd_help(cfg: dict | None = None) -> None:
         (f"/config",             "View current model and masked API key"),
         (f"/toggle-search",      None),
         (f"/toggle-shell",       None),
-        (f"/key <api_key>",      "Set or update your Google AI Studio key"),
+        (f"/key <api_key>",      "Set or update your active Google AI Studio key"),
+        (f"/keys",               "List saved API keys and the active selection"),
+        (f"/key <name> <api_key>", "Save a key under a name and make it active"),
+        (f"/switch-key <name>",  "Switch to a saved API key by name"),
         (f"/model",              "List available models and switch"),
         (f"/workspace [path]",   "Set or show the active project folder"),
         (f"/projects-root [path]", "Set or show the root folder for projects"),
@@ -271,6 +274,31 @@ def cmd_config(cfg: dict) -> None:
 # ------------------------------------------------------------------
 
 def cmd_key(args: str, cfg: dict) -> dict:
+    parts = args.split(maxsplit=1)
+    if len(parts) == 2 and parts[0].strip() and parts[1].strip():
+        name = parts[0].strip()
+        key = parts[1].strip()
+        cfg = load_config()
+        cfg["api_key"] = key
+        cfg["active_api_key_name"] = name
+        cfg.setdefault("api_keys", [])
+        api_keys = cfg["api_keys"]
+        if not isinstance(api_keys, list):
+            api_keys = []
+        existing = None
+        for item in api_keys:
+            if isinstance(item, dict) and item.get("name") == name:
+                existing = item
+                break
+        if existing is None:
+            api_keys.append({"name": name, "key": key})
+        else:
+            existing["key"] = key
+        cfg["api_keys"] = api_keys
+        save_config(cfg)
+        _ok_msg(f"Saved API key '{name}' and made it active.")
+        return cfg
+
     key = args.strip()
 
     if not key:
@@ -287,9 +315,46 @@ def cmd_key(args: str, cfg: dict) -> dict:
         return cfg
 
     cfg["api_key"] = key
+    cfg["active_api_key_name"] = "default"
+    cfg.setdefault("api_keys", [])
+    api_keys = cfg["api_keys"]
+    if not isinstance(api_keys, list):
+        api_keys = []
+    existing = None
+    for item in api_keys:
+        if isinstance(item, dict) and item.get("name") == "default":
+            existing = item
+            break
+    if existing is None:
+        api_keys.append({"name": "default", "key": key})
+    else:
+        existing["key"] = key
+    cfg["api_keys"] = api_keys
     save_config(cfg)
     _ok_msg("API key updated.")
     return cfg
+
+
+def cmd_keys(cfg: dict) -> None:
+    items = list_keys()
+    if not items:
+        _sys_msg("No saved API keys yet.")
+        return
+    lines = []
+    active = cfg.get("active_api_key_name") or "default"
+    for item in items:
+        name = item.get("name", "?")
+        marker = c(COL_OK, " [active]") if name == active else ""
+        lines.append(f"  {c(COL_SYS, name)}{marker}")
+    _print_box("Saved API Keys", lines)
+
+
+def cmd_switch_key(args: str, cfg: dict) -> dict:
+    name = args.strip()
+    if not name:
+        _err_msg("Usage: /switch-key <name>")
+        return cfg
+    return switch_key(name)
 
 
 def cmd_toggle_search(cfg: dict) -> dict:
@@ -594,6 +659,10 @@ def _dispatch(raw_input: str, session_id: str, cfg: dict) -> tuple:
         cmd_config(cfg)
     elif cmd == "key":
         cfg = cmd_key(args, cfg)
+    elif cmd == "keys":
+        cmd_keys(cfg)
+    elif cmd == "switch-key":
+        cfg = cmd_switch_key(args, cfg)
     elif cmd == "toggle-search":
         cfg = cmd_toggle_search(cfg)
     elif cmd == "toggle-shell":
