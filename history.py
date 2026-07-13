@@ -40,7 +40,7 @@ SESSIONS_DIR = POCKET_DIR / "sessions"
 STATE_FILE   = POCKET_DIR / "state.json"
 
 # Gemini roles -- no "assistant", no "system"
-VALID_ROLES = {"user", "model"}
+VALID_ROLES = {"user", "model", "function", "agent_a", "agent_b"}
 
 
 # ------------------------------------------------------------------

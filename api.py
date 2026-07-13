@@ -98,6 +98,10 @@ def _to_gemini_contents(messages: list) -> list:
                 continue
             parts = [{"functionResponse": content}]
 
+        elif role in ("agent_a", "agent_b"):
+            # duo-mode roles are not sent in single-agent calls
+            continue
+
         else:
             # skip any unknown roles
             continue

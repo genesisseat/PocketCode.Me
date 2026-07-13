@@ -729,10 +729,21 @@ def chat_turn(user_input: str, session_id: str, cfg: dict) -> None:
     print(c(COL_DIM, _hline(BOX_SEP)))
     print()
 
-    # Wrap the response text
-    indent = 4
-    wrapped = _wrap_text(reply, indent)
-    prefix = f"  {c(COL_AI, f'{ARROW} AI')}"
+    if cfg.get("duo_mode", {}).get("enabled") and "result" in locals() and isinstance(result, dict):
+        draft = result.get("draft", "")
+        if draft:
+            print(f"  {c(COL_MODEL, 'Agent A')}\n")
+            for line in _wrap_text(draft, 4):
+                print(f"  {line}")
+            print()
+        print(f"  {c(COL_AI, 'Agent B')}\n")
+        indent = 4
+        wrapped = _wrap_text(reply, indent)
+        prefix = f"  {c(COL_AI, f'{ARROW} AI')}"
+    else:
+        indent = 4
+        wrapped = _wrap_text(reply, indent)
+        prefix = f"  {c(COL_AI, f'{ARROW} AI')}"
     if wrapped:
         print(f"{prefix}  {wrapped[0]}")
         pad = " " * (len(strip_ansi(prefix)) + 2)
@@ -745,7 +756,11 @@ def chat_turn(user_input: str, session_id: str, cfg: dict) -> None:
     print(c(COL_DIM, _hline(BOX_SEP)))
     print()
 
-    append_message("model", reply, session_id)
+    if cfg.get("duo_mode", {}).get("enabled") and "result" in locals() and isinstance(result, dict):
+        append_message("agent_a", result.get("draft", ""), session_id)
+        append_message("agent_b", reply, session_id)
+    else:
+        append_message("model", reply, session_id)
 
 
 # ------------------------------------------------------------------
